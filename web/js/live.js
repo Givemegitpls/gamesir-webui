@@ -37,6 +37,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
   updateTolerance();
 
   let lastKey = null;
+  let statusText = '';
 
   // Stuck-centre hint
   const watcher = createDriftWatcher();
@@ -106,12 +107,13 @@ export function startLiveView(doc = document, onMode = () => {}) {
     }
   }
 
-  function frame() {
+  function tick() {
     const found = pickGamepad(navigator.getGamepads?.() ?? []);
     if (!found) {
       if (lastKey !== null) {
         lastKey = null;
-        info.textContent = 'геймпад не найден (нажмите кнопку на паде, чтобы разбудить)';
+        statusText = 'геймпад не найден (нажмите кнопку на паде, чтобы разбудить)';
+        info.textContent = statusText;
         onMode(null);
         doc.querySelectorAll('[data-button]').forEach((badge) => badge.classList.remove('on'));
         for (const stick of Object.values(sticks)) {
@@ -120,7 +122,6 @@ export function startLiveView(doc = document, onMode = () => {}) {
         }
       }
       if (driftHint) driftHint.hidden = true;
-      requestAnimationFrame(frame);
       return;
     }
 
@@ -131,7 +132,8 @@ export function startLiveView(doc = document, onMode = () => {}) {
       lastKey = key;
       const vendor = meta.vendorId === null ? '?' : `0x${meta.vendorId.toString(16)}`;
       const product = meta.productId === null ? '?' : `0x${meta.productId.toString(16)}`;
-      info.textContent = `${meta.name} | ${vendor}:${product} | ${meta.mode.label} | mapping: ${pad.mapping}`;
+      statusText = `${meta.name} | ${vendor}:${product} | ${meta.mode.label} | mapping: ${pad.mapping}`;
+      info.textContent = statusText;
       onMode(meta);
     }
 
@@ -162,10 +164,82 @@ export function startLiveView(doc = document, onMode = () => {}) {
     ltVal.textContent = input.lt.toFixed(2);
     rtVal.textContent = input.rt.toFixed(2);
     updateDriftHint(input, tol);
-    requestAnimationFrame(frame);
   }
 
-  requestAnimationFrame(frame);
+  // A frame that throws used to kill the loop for good: requestAnimationFrame was
+  // the last statement, so one exception (or a suspended rAF) froze sticks, buttons
+  // and trigger bars until a page reload. The loop is now self-healing: the next
+  // frame is scheduled in `finally`, a watchdog re-arms a stalled rAF, and the error
+  // surfaces in the status line instead of only in the console.
+  let running = false;
+  let rafId = 0;
+  let lastFrameAt = 0;
+  let consecutiveFailures = 0;
+
+  function cancelRaf() {
+    if (rafId && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+
+  function schedule() {
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function frame() {
+    if (!running) return; // stale callback from a re-armed loop
+    rafId = 0;
+    lastFrameAt = performance.now();
+    try {
+      const recovered = consecutiveFailures > 0;
+      tick();
+      consecutiveFailures = 0;
+      // A frame that worked again must not keep showing the stale error text.
+      if (recovered && statusText) info.textContent = statusText;
+    } catch (err) {
+      consecutiveFailures += 1;
+      // Report the first failure and then rarely, so a broken pad cannot flood the console.
+      if (consecutiveFailures === 1 || consecutiveFailures % 60 === 0) {
+        console.error('live view: кадр упал', err);
+        info.textContent = `⚠ кадр live-вида упал: ${err?.message ?? err} — цикл продолжает работу`;
+      }
+    } finally {
+      if (running) schedule();
+    }
+  }
+
+  // Chromium may stop delivering rAF for an occluded or frozen window/tab and does
+  // not always resume without help; a stalled loop is restarted from here.
+  const watchdog = setInterval(() => {
+    if (!running || performance.now() - lastFrameAt < 2000) return;
+    cancelRaf();
+    schedule();
+  }, 1000);
+
+  const onVisibility = () => {
+    if (doc.visibilityState && doc.visibilityState !== 'visible') return;
+    lastFrameAt = performance.now();
+    cancelRaf();
+    schedule();
+  };
+  doc.addEventListener?.('visibilitychange', onVisibility);
+
+  function start() {
+    if (running) return;
+    running = true;
+    lastFrameAt = performance.now();
+    schedule();
+  }
+
+  start();
+
+  return {
+    stop() {
+      running = false;
+      cancelRaf();
+      clearInterval(watchdog);
+      doc.removeEventListener?.('visibilitychange', onVisibility);
+    },
+  };
 }
 
 // Full calibration guide, shown only when a stick really sits off centre.
