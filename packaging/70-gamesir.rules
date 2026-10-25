@@ -1,0 +1,17 @@
+# GameSir vendor USB (0x3537): config HID interface of Cyclone 2 / Nova / Tarantula.
+#
+# Needed so a normal user (and therefore Chromium's WebHID) can open the
+# interface. The 70- prefix matters: uaccess ACLs are applied by
+# 73-seat-late.rules, so a rule numbered 73 or later sets the tag too late.
+#
+# Install:
+#   sudo cp 70-gamesir.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# Remove: sudo rm /etc/udev/rules.d/70-gamesir.rules
+KERNEL=="hidraw*", ATTRS{idVendor}=="3537", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Scope note: vendor 0x3537 only exists while the pad is in XInput mode
+# (HOME indicator green). In DS4 (054c:09cc) or Switch modes the vendor config
+# channel does not exist at all - no rule can bring it back; use View + Menu
+# (hold ~2 s) to cycle back to XInput. Live gamepad input needs no rule.

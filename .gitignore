@@ -1,0 +1,11 @@
+# Вендорские артефакты: большие и не наши
+GameSir Connect/
+*.exe
+cyclone2.pdf
+
+# Личные дампы состояния пада
+dumps/
+
+# Python
+__pycache__/
+*.pyc

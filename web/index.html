@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameSir Cyclone 2 — панель настроек</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Cyclone 2</h1>
+  <div class="row">
+    <button id="connect">Подключить (WebHID)</button>
+    <button id="diagnose" disabled>Диагностика</button>
+    <span id="status" class="status">не подключено</span>
+  </div>
+  <p class="hint">
+    Chromium и производные. Страница должна быть на <code>localhost</code> или <code>https</code>;
+    на hidraw-ноду нужно udev-правило для vendor <code>0x3537</code>
+    (см. <code>70-gamesir.rules</code> в README).
+  </p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Живое состояние <small>(Gamepad API, прав не требует)</small></h2>
+    <p id="padinfo" class="hint">геймпад не найден</p>
+    <p id="modehint" class="hint"></p>
+    <p class="legend">
+      <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="11" height="11" rx="1.5"/><rect x="10" y="10" width="11" height="11" rx="1.5"/></svg> View</span>
+      <span class="hint">левая у HOME</span>
+      <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg> Menu</span>
+      <span class="hint">правая у HOME (☰, это Start)</span>
+      <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> M</span>
+      <span class="hint">доп. кнопка на корпусе</span>
+    </p>
+    <div class="live">
+      <figure class="stick" data-stick="ls">
+        <svg viewBox="-110 -110 220 220" aria-label="левый стик">
+          <circle class="ring" r="100" />
+          <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
+          <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
+          <circle class="tolerance" r="2" />
+          <circle class="dot" r="7" cx="0" cy="0" />
+        </svg>
+        <figcaption>
+          <b>LS</b>
+          <span class="coords" data-coords="ls">0.000, 0.000</span>
+          <span class="badge">центр</span>
+        </figcaption>
+      </figure>
+
+      <figure class="stick" data-stick="rs">
+        <svg viewBox="-110 -110 220 220" aria-label="правый стик">
+          <circle class="ring" r="100" />
+          <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
+          <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
+          <circle class="tolerance" r="2" />
+          <circle class="dot" r="7" cx="0" cy="0" />
+        </svg>
+        <figcaption>
+          <b>RS</b>
+          <span class="coords" data-coords="rs">0.000, 0.000</span>
+          <span class="badge">центр</span>
+        </figcaption>
+      </figure>
+
+      <div class="triggers">
+        <div class="bars">
+          <div class="bar-v">
+            <div class="track"><span id="lt-bar"></span></div>
+            <em>LT <b id="lt-val">0.00</b></em>
+          </div>
+          <div class="bar-v">
+            <div class="track"><span id="rt-bar"></span></div>
+            <em>RT <b id="rt-val">0.00</b></em>
+          </div>
+        </div>
+        <div class="bumpers" aria-label="бамперы">
+          <span class="press" data-button="4" title="LB">LB</span>
+          <span class="press" data-button="5" title="RB">RB</span>
+        </div>
+        <label class="tol">порог центра
+          <input type="range" id="center-tol" min="0" max="10" step="0.5" value="2">
+          <output id="center-tol-out">2.0%</output>
+        </label>
+        <p class="hint">
+          Значения читаются сырыми, без мёртвой зоны прошивки: если стик стоит, а точка не в
+          центре или оси не подсвечиваются — центр сбит.
+        </p>
+      </div>
+    </div>
+
+    <div id="drift-hint" class="drift" hidden>
+      <div id="drift-text"></div>
+      <button id="drift-dismiss" type="button">Скрыть на 5 минут</button>
+    </div>
+
+    <h3 class="group-title">Тест кнопок</h3>
+    <p class="hint">
+      Подсвечивается то, что пад реально отдаёт хосту. После ремапа физическая кнопка перестаёт
+      приходить — значит назначение сработало. Крестовина и ABXY — под стиками и курками,
+      ниже — служебные кнопки и всё, что пад отдаёт сверх стандартного.
+    </p>
+    <div class="pad-row">
+      <div class="pad-cross" data-cross="dpad" aria-label="крестовина">
+        <span class="press up" data-button="12" title="крестовина вверх">↑</span>
+        <span class="press left" data-button="14" title="крестовина влево">←</span>
+        <span class="press right" data-button="15" title="крестовина вправо">→</span>
+        <span class="press down" data-button="13" title="крестовина вниз">↓</span>
+      </div>
+
+
+      <div class="pad-cross" data-cross="face" aria-label="кнопки ABXY">
+        <span class="press up" data-button="3" title="Y">Y</span>
+        <span class="press left" data-button="2" title="X">X</span>
+        <span class="press right" data-button="1" title="B">B</span>
+        <span class="press down" data-button="0" title="A">A</span>
+      </div>
+    </div>
+    <div id="button-test" class="presses"></div>
+  </section>
+
+  <section class="card">
+    <h2>Профиль и настройки</h2>
+    <p class="hint">
+      Байтовые значения 0…100 прямо из профиля. «Центр» — внутренняя мёртвая зона,
+      «край» — граница отклика, «anti» — расширение рабочего диапазона.
+      Курки идут отдельной секцией, там же clicky-режим (короткий ход курка).
+    </p>
+    <div class="controls">
+      <label>Профиль
+        <select id="page">
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">Shift</option>
+          <option value="32">Подсветка</option>
+        </select>
+      </label>
+      <div class="row">
+        <button id="read">Прочитать</button>
+        <button id="apply" disabled>Применить</button>
+        <button id="revert" disabled>Отменить изменения</button>
+      </div>
+    </div>
+    <div class="row secondary">
+      <button id="activate-profile" disabled>Сделать активным на паде</button>
+      <label>Скопировать в
+        <select id="copy-target">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">Shift</option>
+        </select>
+      </label>
+      <button id="copy-profile" disabled>Копировать</button>
+      <button id="restore-session" disabled>Откатить к снимку сессии</button>
+      <span id="active-profile" class="hint"></span>
+    </div>
+    <div id="editor" class="editor"></div>
+    <div class="row">
+      <button id="backup">Скачать бэкап всех страниц</button>
+      <label class="file">Восстановить из файла<input type="file" id="restore" accept=".json"></label>
+    </div>
+    <pre id="log" class="log"></pre>
+  </section>
+
+  <section class="card span-all" id="perms">
+    <details>
+      <summary>Права на устройство (udev) — если WebHID пишет «Failed to open the device»</summary>
+      <p class="hint">
+        Живое состояние выше работает всегда: Gamepad API прав не требует. А вот
+        вендорский интерфейс (запись настроек) — это отдельная hidraw-нода
+        <code>/dev/hidrawN</code>, по умолчанию <code>root:root 0600</code>, поэтому
+        браузеру нужно выдать доступ один раз. Пад агрессивно засыпает, при
+        пробуждении нода пересоздаётся — правило должно лежать на месте, иначе доступ
+        отваливается снова. Команды ниже собираются на месте под твою систему.
+      </p>
+      <p class="hint">
+        Почему чужие утилиты обходятся без правил: доступ им нужен такой же, просто их
+        устройство уже покрыто дистрибутивом. Для DualShock 4 правило лежит в системе
+        (на Arch — пакет <code>steam-devices</code>, файл <code>60-steam-input.rules</code>:
+        <code>ATTRS{idVendor}=="054c", ATTRS{idProduct}=="09cc"</code>). Наш пад попадает
+        под него только в DS4-режиме, а в XInput он <code>3537:xxxx</code> — такого вендора
+        нет ни в <code>steam-devices</code>, ни в <code>70-uaccess.rules</code> (там про
+        джойстики только <code>SUBSYSTEM=="input"</code>, то есть <code>event*</code>/<code>js*</code>,
+        но не hidraw). Вендорский интерфейс не выглядит как input-устройство, поэтому
+        системе о нём знать неоткуда.
+      </p>
+
+      <div class="row">
+        <label>Группа
+          <select id="udev-group">
+            <option value="input" selected>input</option>
+            <option value="uucp">uucp</option>
+            <option value="">только uaccess, без GROUP</option>
+          </select>
+        </label>
+        <button id="udev-copy-all" type="button">Скопировать установку целиком</button>
+      </div>
+
+      <h3>1. Правило</h3>
+      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-rule"></code></pre>
+      <p class="hint">
+        Матчится только вендор GameSir. Префикс <code>70-</code> важен: ACL по тегу
+        <code>uaccess</code> применяется в <code>73-seat-late.rules</code>, поэтому правило
+        с номером <code>73</code> и выше ставит тег слишком поздно и доступ молча не выдаётся.
+        Группа нужна для headless-систем без локального seat, где <code>uaccess</code> не срабатывает.
+      </p>
+
+      <h3>2. Установка</h3>
+      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-install"></code></pre>
+
+      <h3>3. Проверка</h3>
+      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-verify"></code></pre>
+
+      <h3>4. Удаление</h3>
+      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-remove"></code></pre>
+      <p class="hint">
+        Без правил есть разовый вариант — он проходит по всем нодам вендора и отдаёт их
+        выбранной группе, но его надо повторять после каждого сна пада:
+      </p>
+      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-chmod"></code></pre>
+      <p class="hint">
+        Совсем не трогать систему тоже можно: перенести работу с устройством в контейнер
+        (Docker открывает ноду от root через <code>--device</code>/<code>--privileged</code>),
+        а странице ходить в бэкенд по HTTP. Это <strong>сознательно не сделано</strong>:
+        выбран путь с одним udev-правилом — ровно так же работают утилиты для DualShock 4,
+        просто у них правило для <code>054c:09cc</code> уже лежит в системе (пакет
+        <code>steam-devices</code>), а вендора <code>3537</code> в стандартных наборах нет.
+      </p>
+    </details>
+  </section>
+</main>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
