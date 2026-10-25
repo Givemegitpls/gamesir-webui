@@ -3,18 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GameSir Cyclone 2 — панель настроек</title>
+<title data-i18n="app.title">GameSir Cyclone 2 — панель настроек</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
   <h1>Cyclone 2</h1>
   <div class="row">
-    <button id="connect">Подключить (WebHID)</button>
-    <button id="diagnose" disabled>Диагностика</button>
+    <button id="connect" data-i18n="header.connect">Подключить (WebHID)</button>
+    <button id="diagnose" disabled data-i18n="header.diagnose">Диагностика</button>
     <span id="status" class="status">не подключено</span>
+    <label class="lang">🌐
+      <select id="lang" data-i18n-aria="lang.label"></select>
+    </label>
   </div>
-  <p class="hint">
+  <p class="hint" data-i18n-html="header.hint">
     Chromium и производные. Страница должна быть на <code>localhost</code> или <code>https</code>;
     на hidraw-ноду нужно udev-правило для vendor <code>0x3537</code>
     (см. <code>70-gamesir.rules</code> в README).
@@ -23,20 +26,20 @@
 
 <main>
   <section class="card">
-    <h2>Живое состояние <small>(Gamepad API, прав не требует)</small></h2>
+    <h2><span data-i18n="live.title">Живое состояние</span> <small data-i18n="live.titleNote">(Gamepad API, прав не требует)</small></h2>
     <p id="padinfo" class="hint">геймпад не найден</p>
     <p id="modehint" class="hint"></p>
     <p class="legend">
       <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="11" height="11" rx="1.5"/><rect x="10" y="10" width="11" height="11" rx="1.5"/></svg> View</span>
-      <span class="hint">левая у HOME</span>
+      <span class="hint" data-i18n="legend.viewAt">левая у HOME</span>
       <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg> Menu</span>
-      <span class="hint">правая у HOME (☰, это Start)</span>
+      <span class="hint" data-i18n="legend.menuAt">правая у HOME (☰, это Start)</span>
       <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> M</span>
-      <span class="hint">доп. кнопка на корпусе</span>
+      <span class="hint" data-i18n="legend.mAt">доп. кнопка на корпусе</span>
     </p>
     <div class="live">
       <figure class="stick" data-stick="ls">
-        <svg viewBox="-110 -110 220 220" aria-label="левый стик">
+        <svg viewBox="-110 -110 220 220" data-i18n-aria="live.stickLeft" aria-label="левый стик">
           <circle class="ring" r="100" />
           <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
           <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
@@ -51,7 +54,7 @@
       </figure>
 
       <figure class="stick" data-stick="rs">
-        <svg viewBox="-110 -110 220 220" aria-label="правый стик">
+        <svg viewBox="-110 -110 220 220" data-i18n-aria="live.stickRight" aria-label="правый стик">
           <circle class="ring" r="100" />
           <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
           <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
@@ -76,15 +79,15 @@
             <em>RT <b id="rt-val">0.00</b></em>
           </div>
         </div>
-        <div class="bumpers" aria-label="бамперы">
+        <div class="bumpers" data-i18n-aria="live.bumpers" aria-label="бамперы">
           <span class="press" data-button="4" title="LB">LB</span>
           <span class="press" data-button="5" title="RB">RB</span>
         </div>
-        <label class="tol">порог центра
+        <label class="tol"><span data-i18n="live.tolerance">порог центра</span>
           <input type="range" id="center-tol" min="0" max="10" step="0.5" value="2">
           <output id="center-tol-out">2.0%</output>
         </label>
-        <p class="hint">
+        <p class="hint" data-i18n="live.rawHint">
           Значения читаются сырыми, без мёртвой зоны прошивки: если стик стоит, а точка не в
           центре или оси не подсвечиваются — центр сбит.
         </p>
@@ -93,25 +96,25 @@
 
     <div id="drift-hint" class="drift" hidden>
       <div id="drift-text"></div>
-      <button id="drift-dismiss" type="button">Скрыть на 5 минут</button>
+      <button id="drift-dismiss" type="button" data-i18n="drift.dismiss">Скрыть на 5 минут</button>
     </div>
 
-    <h3 class="group-title">Тест кнопок</h3>
-    <p class="hint">
+    <h3 class="group-title" data-i18n="live.buttonTest">Тест кнопок</h3>
+    <p class="hint" data-i18n="live.buttonTestHint">
       Подсвечивается то, что пад реально отдаёт хосту. После ремапа физическая кнопка перестаёт
       приходить — значит назначение сработало. Крестовина и ABXY — под стиками и курками,
       ниже — служебные кнопки и всё, что пад отдаёт сверх стандартного.
     </p>
     <div class="pad-row">
-      <div class="pad-cross" data-cross="dpad" aria-label="крестовина">
-        <span class="press up" data-button="12" title="крестовина вверх">↑</span>
-        <span class="press left" data-button="14" title="крестовина влево">←</span>
-        <span class="press right" data-button="15" title="крестовина вправо">→</span>
-        <span class="press down" data-button="13" title="крестовина вниз">↓</span>
+      <div class="pad-cross" data-cross="dpad" data-i18n-aria="live.dpad" aria-label="крестовина">
+        <span class="press up" data-button="12" data-i18n-title="live.dpadUp" title="крестовина вверх">↑</span>
+        <span class="press left" data-button="14" data-i18n-title="live.dpadLeft" title="крестовина влево">←</span>
+        <span class="press right" data-button="15" data-i18n-title="live.dpadRight" title="крестовина вправо">→</span>
+        <span class="press down" data-button="13" data-i18n-title="live.dpadDown" title="крестовина вниз">↓</span>
       </div>
 
 
-      <div class="pad-cross" data-cross="face" aria-label="кнопки ABXY">
+      <div class="pad-cross" data-cross="face" data-i18n-aria="live.faceButtons" aria-label="кнопки ABXY">
         <span class="press up" data-button="3" title="Y">Y</span>
         <span class="press left" data-button="2" title="X">X</span>
         <span class="press right" data-button="1" title="B">B</span>
@@ -122,55 +125,55 @@
   </section>
 
   <section class="card">
-    <h2>Профиль и настройки</h2>
-    <p class="hint">
+    <h2 data-i18n="profile.title">Профиль и настройки</h2>
+    <p class="hint" data-i18n="profile.hint">
       Байтовые значения 0…100 прямо из профиля. «Центр» — внутренняя мёртвая зона,
       «край» — граница отклика, «anti» — расширение рабочего диапазона.
       Курки идут отдельной секцией, там же clicky-режим (короткий ход курка).
     </p>
     <div class="controls">
-      <label>Профиль
+      <label><span data-i18n="profile.profile">Профиль</span>
         <select id="page">
           <option value="1" selected>1</option>
           <option value="2">2</option>
           <option value="3">3</option>
           <option value="4">4</option>
-          <option value="5">Shift</option>
-          <option value="32">Подсветка</option>
+          <option value="5" data-i18n="profile.shift">Shift</option>
+          <option value="32" data-i18n="profile.light">Подсветка</option>
         </select>
       </label>
       <div class="row">
-        <button id="read">Прочитать</button>
-        <button id="apply" disabled>Применить</button>
-        <button id="revert" disabled>Отменить изменения</button>
+        <button id="read" data-i18n="profile.read">Прочитать</button>
+        <button id="apply" disabled data-i18n="profile.apply">Применить</button>
+        <button id="revert" disabled data-i18n="profile.revert">Отменить изменения</button>
       </div>
     </div>
     <div class="row secondary">
-      <button id="activate-profile" disabled>Сделать активным на паде</button>
-      <label>Скопировать в
+      <button id="activate-profile" disabled data-i18n="profile.activate">Сделать активным на паде</button>
+      <label><span data-i18n="profile.copyTo">Скопировать в</span>
         <select id="copy-target">
           <option value="2">2</option>
           <option value="3">3</option>
           <option value="4">4</option>
-          <option value="5">Shift</option>
+          <option value="5" data-i18n="profile.shift">Shift</option>
         </select>
       </label>
-      <button id="copy-profile" disabled>Копировать</button>
-      <button id="restore-session" disabled>Откатить к снимку сессии</button>
+      <button id="copy-profile" disabled data-i18n="profile.copy">Копировать</button>
+      <button id="restore-session" disabled data-i18n="profile.restoreSession">Откатить к снимку сессии</button>
       <span id="active-profile" class="hint"></span>
     </div>
     <div id="editor" class="editor"></div>
     <div class="row">
-      <button id="backup">Скачать бэкап всех страниц</button>
-      <label class="file">Восстановить из файла<input type="file" id="restore" accept=".json"></label>
+      <button id="backup" data-i18n="profile.backup">Скачать бэкап всех страниц</button>
+      <label class="file"><span data-i18n="profile.restoreFile">Восстановить из файла</span><input type="file" id="restore" accept=".json"></label>
     </div>
     <pre id="log" class="log"></pre>
   </section>
 
   <section class="card span-all" id="perms">
     <details>
-      <summary>Права на устройство (udev) — если WebHID пишет «Failed to open the device»</summary>
-      <p class="hint">
+      <summary data-i18n="perms.summary">Права на устройство (udev) — если WebHID пишет «Failed to open the device»</summary>
+      <p class="hint" data-i18n-html="perms.intro">
         Живое состояние выше работает всегда: Gamepad API прав не требует. А вот
         вендорский интерфейс (запись настроек) — это отдельная hidraw-нода
         <code>/dev/hidrawN</code>, по умолчанию <code>root:root 0600</code>, поэтому
@@ -178,7 +181,7 @@
         пробуждении нода пересоздаётся — правило должно лежать на месте, иначе доступ
         отваливается снова. Команды ниже собираются на месте под твою систему.
       </p>
-      <p class="hint">
+      <p class="hint" data-i18n-html="perms.why">
         Почему чужие утилиты обходятся без правил: доступ им нужен такой же, просто их
         устройство уже покрыто дистрибутивом. Для DualShock 4 правило лежит в системе
         (на Arch — пакет <code>steam-devices</code>, файл <code>60-steam-input.rules</code>:
@@ -191,39 +194,39 @@
       </p>
 
       <div class="row">
-        <label>Группа
+        <label><span data-i18n="perms.group">Группа</span>
           <select id="udev-group">
             <option value="input" selected>input</option>
             <option value="uucp">uucp</option>
-            <option value="">только uaccess, без GROUP</option>
+            <option value="" data-i18n="perms.groupUaccess">только uaccess, без GROUP</option>
           </select>
         </label>
-        <button id="udev-copy-all" type="button">Скопировать установку целиком</button>
+        <button id="udev-copy-all" type="button" data-i18n="perms.copyAll">Скопировать установку целиком</button>
       </div>
 
-      <h3>1. Правило</h3>
-      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-rule"></code></pre>
-      <p class="hint">
+      <h3 data-i18n="perms.step1">1. Правило</h3>
+      <pre class="cmd"><button class="copy" type="button" data-i18n="perms.copy">копировать</button><code id="udev-rule"></code></pre>
+      <p class="hint" data-i18n-html="perms.ruleHint">
         Матчится только вендор GameSir. Префикс <code>70-</code> важен: ACL по тегу
         <code>uaccess</code> применяется в <code>73-seat-late.rules</code>, поэтому правило
         с номером <code>73</code> и выше ставит тег слишком поздно и доступ молча не выдаётся.
         Группа нужна для headless-систем без локального seat, где <code>uaccess</code> не срабатывает.
       </p>
 
-      <h3>2. Установка</h3>
-      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-install"></code></pre>
+      <h3 data-i18n="perms.step2">2. Установка</h3>
+      <pre class="cmd"><button class="copy" type="button" data-i18n="perms.copy">копировать</button><code id="udev-install"></code></pre>
 
-      <h3>3. Проверка</h3>
-      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-verify"></code></pre>
+      <h3 data-i18n="perms.step3">3. Проверка</h3>
+      <pre class="cmd"><button class="copy" type="button" data-i18n="perms.copy">копировать</button><code id="udev-verify"></code></pre>
 
-      <h3>4. Удаление</h3>
-      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-remove"></code></pre>
-      <p class="hint">
+      <h3 data-i18n="perms.step4">4. Удаление</h3>
+      <pre class="cmd"><button class="copy" type="button" data-i18n="perms.copy">копировать</button><code id="udev-remove"></code></pre>
+      <p class="hint" data-i18n="perms.oneShotHint">
         Без правил есть разовый вариант — он проходит по всем нодам вендора и отдаёт их
         выбранной группе, но его надо повторять после каждого сна пада:
       </p>
-      <pre class="cmd"><button class="copy" type="button">копировать</button><code id="udev-chmod"></code></pre>
-      <p class="hint">
+      <pre class="cmd"><button class="copy" type="button" data-i18n="perms.copy">копировать</button><code id="udev-chmod"></code></pre>
+      <p class="hint" data-i18n-html="perms.dockerHint">
         Совсем не трогать систему тоже можно: перенести работу с устройством в контейнер
         (Docker открывает ноду от root через <code>--device</code>/<code>--privileged</code>),
         а странице ходить в бэкенд по HTTP. Это <strong>сознательно не сделано</strong>:

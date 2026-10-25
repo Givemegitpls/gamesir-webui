@@ -47,6 +47,9 @@ import {
   writePageDiff,
 } from '../web/js/protocol.js';
 import { CMD } from '../web/js/hid.js';
+import { setLang, t } from '../web/js/i18n.js';
+
+setLang('ru');
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(readFileSync(join(here, 'fixtures/page1-frames.json'), 'utf8'));
@@ -134,7 +137,7 @@ for (const [index, clicky] of CLICKY_TRIGGER.entries()) {
     clicky.status === base + 12 && clicky.start === base + 13 && clicky.end === base + 14,
     `0x${clicky.status.toString(16)}`,
   );
-  check(`clicky ${clicky.id} is labelled clicky`, /clicky/i.test(clicky.label), clicky.label);
+  check(`clicky ${clicky.id} is labelled clicky`, /clicky/i.test(t(clicky.labelKey)), t(clicky.labelKey));
 }
 check(
   'deadzone blocks keep sticks first',

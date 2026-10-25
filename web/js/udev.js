@@ -20,7 +20,7 @@ export function ruleLine({ groupId = 'input' } = {}) {
   return parts.join(', ');
 }
 
-export function buildUdevScript({ groupId = 'input', rulePath = RULE_PATH, useSudo = true } = {}) {
+export function buildUdevScript({ groupId = 'input', rulePath = RULE_PATH, useSudo = true, comment = '' } = {}) {
   const sudo = useSudo ? 'sudo ' : '';
   const raw = sanitizeGroup(groupId);
   const group = raw === null ? 'input' : raw;
@@ -28,7 +28,8 @@ export function buildUdevScript({ groupId = 'input', rulePath = RULE_PATH, useSu
 
   const install = `echo '${rule}' | ${sudo}tee ${rulePath} >/dev/null`;
   const reload = `${sudo}udevadm control --reload-rules && ${sudo}udevadm trigger --action=change --subsystem-match=hidraw`;
-  const verify = 'getfacl /dev/hidraw6   # ожидается строка user:<вы>:rw-';
+  const suffix = comment ? `   # ${comment}` : '';
+  const verify = `getfacl /dev/hidraw6${suffix}`;
   const remove = `${sudo}rm ${rulePath} && ${sudo}udevadm control --reload-rules`;
 
   // No rule needed: hand the current nodes over to a group the user is in.

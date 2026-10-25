@@ -6,8 +6,11 @@
 
 import { createDriftWatcher } from './drift.js';
 import { isCentered, isIdle, pickGamepad, readButtons, readInputs } from './gamepad.js';
+import { onLangChange, t } from './i18n.js';
 
 const RANGE = 100; // viewBox units per 1.0 of axis travel
+
+const stickLabel = (name) => t(name === 'ls' ? 'live.stickLeft' : 'live.stickRight');
 
 export function startLiveView(doc = document, onMode = () => {}) {
   const info = doc.getElementById('padinfo');
@@ -24,6 +27,13 @@ export function startLiveView(doc = document, onMode = () => {}) {
     rs: mount(doc, 'rs'),
   };
 
+  // Both nodes are owned by this module (the markup only carries the fallback),
+  // so the initial text follows the language too.
+  if (info) info.textContent = t('live.padMissing');
+  for (const stick of Object.values(sticks)) {
+    if (stick.badge) stick.badge.textContent = t('live.centred');
+  }
+
   const tolerance = () => (Number(tolInput?.value ?? 2) / 100);
 
   function updateTolerance() {
@@ -37,7 +47,15 @@ export function startLiveView(doc = document, onMode = () => {}) {
   updateTolerance();
 
   let lastKey = null;
+  let lastMeta = null;
   let statusText = '';
+
+  // One line describing what the browser sees; rebuilt on a language switch too.
+  const describePad = (meta, pad) => {
+    const vendor = meta.vendorId === null ? '?' : `0x${meta.vendorId.toString(16)}`;
+    const product = meta.productId === null ? '?' : `0x${meta.productId.toString(16)}`;
+    return `${meta.name} | ${vendor}:${product} | ${meta.mode.label} | mapping: ${pad.mapping}`;
+  };
 
   // Stuck-centre hint
   const watcher = createDriftWatcher();
@@ -46,7 +64,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
   const SNOOZE_MS = 5 * 60 * 1000;
   const snoozeUntil = { ls: 0, rs: 0 };
   let lastStates = null;
-  const STICK_LABEL = { ls: 'Левый стик', rs: 'Правый стик' };
+  let lastDrift = null; // keeps the visible hint re-renderable after a language switch
 
   doc.getElementById('drift-dismiss')?.addEventListener('click', () => {
     const now = performance.now();
@@ -64,9 +82,11 @@ export function startLiveView(doc = document, onMode = () => {}) {
     );
     if (!suspect) {
       driftHint.hidden = true;
+      lastDrift = null;
       return;
     }
     const { magnitude, steadyFor } = states[suspect];
+    lastDrift = { stick: suspect, magnitude, steadyFor };
     driftText.innerHTML = driftHtml(suspect, magnitude, steadyFor);
     driftHint.hidden = false;
   }
@@ -112,7 +132,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
     if (!found) {
       if (lastKey !== null) {
         lastKey = null;
-        statusText = 'геймпад не найден (нажмите кнопку на паде, чтобы разбудить)';
+        statusText = t('live.padMissing');
         info.textContent = statusText;
         onMode(null);
         doc.querySelectorAll('[data-button]').forEach((badge) => badge.classList.remove('on'));
@@ -130,9 +150,8 @@ export function startLiveView(doc = document, onMode = () => {}) {
     const key = `${meta.vendorId}:${meta.productId}:${pad.id}`;
     if (key !== lastKey) {
       lastKey = key;
-      const vendor = meta.vendorId === null ? '?' : `0x${meta.vendorId.toString(16)}`;
-      const product = meta.productId === null ? '?' : `0x${meta.productId.toString(16)}`;
-      statusText = `${meta.name} | ${vendor}:${product} | ${meta.mode.label} | mapping: ${pad.mapping}`;
+      lastMeta = meta;
+      statusText = describePad(meta, pad);
       info.textContent = statusText;
       onMode(meta);
     }
@@ -154,7 +173,9 @@ export function startLiveView(doc = document, onMode = () => {}) {
         }${position.y.toFixed(3)}`;
       }
       if (stick.badge) {
-        stick.badge.textContent = centered ? 'центр' : `сбит: ${Math.hypot(position.x, position.y).toFixed(3)}`;
+        stick.badge.textContent = centered
+          ? t('live.centred')
+          : t('live.offCentre', { value: Math.hypot(position.x, position.y).toFixed(3) });
       }
     }
 
@@ -199,8 +220,8 @@ export function startLiveView(doc = document, onMode = () => {}) {
       consecutiveFailures += 1;
       // Report the first failure and then rarely, so a broken pad cannot flood the console.
       if (consecutiveFailures === 1 || consecutiveFailures % 60 === 0) {
-        console.error('live view: кадр упал', err);
-        info.textContent = `⚠ кадр live-вида упал: ${err?.message ?? err} — цикл продолжает работу`;
+        console.error('live view: frame failed', err);
+        info.textContent = t('live.frameFailed', { message: err?.message ?? err });
       }
     } finally {
       if (running) schedule();
@@ -223,6 +244,24 @@ export function startLiveView(doc = document, onMode = () => {}) {
   };
   doc.addEventListener?.('visibilitychange', onVisibility);
 
+  // Texts that are not rebuilt every frame: the "no pad" line and the visible
+  // calibration guide.
+  const offLang = onLangChange(() => {
+    if (lastKey === null) {
+      statusText = t('live.padMissing');
+      info.textContent = statusText;
+      for (const stick of Object.values(sticks)) {
+        if (stick.badge) stick.badge.textContent = t('live.centred');
+      }
+    } else if (lastMeta && lastPad) {
+      statusText = describePad(lastMeta, lastPad);
+      info.textContent = statusText;
+    }
+    if (lastDrift && driftText && driftHint && !driftHint.hidden) {
+      driftText.innerHTML = driftHtml(lastDrift.stick, lastDrift.magnitude, lastDrift.steadyFor);
+    }
+  });
+
   function start() {
     if (running) return;
     running = true;
@@ -237,32 +276,31 @@ export function startLiveView(doc = document, onMode = () => {}) {
       running = false;
       cancelRaf();
       clearInterval(watchdog);
+      offLang();
       doc.removeEventListener?.('visibilitychange', onVisibility);
     },
   };
 }
 
 // Full calibration guide, shown only when a stick really sits off centre.
-// Wording follows the printed manual ("калибровка стиков и триггеров").
+// Wording follows the printed manual ("stick and trigger calibration").
 function driftHtml(stick, magnitude, steadyFor) {
   return `
     <p class="drift-reason">
-      ${STICK_LABEL[stick]} не возвращается в центр: ${magnitude.toFixed(3)} и не меняется уже
-      ${(steadyFor / 1000).toFixed(1)} с.
+      ${t('drift.reason', {
+        stick: stickLabel(stick),
+        magnitude: magnitude.toFixed(3),
+        seconds: (steadyFor / 1000).toFixed(1),
+      })}
     </p>
     <div class="drift-body">
-      <strong>Калибровка стиков и триггеров</strong>
+      <strong>${t('drift.title')}</strong>
       <ol>
-        <li>Нажмите и удерживайте кнопку «Просмотр» (два квадрата) + кнопку меню (☰) + кнопку Home,
-            пока индикатор кнопки Home не начнёт медленно мигать белым.</li>
-        <li>Не касайтесь триггеров LT и RT, а также левого и правого стиков. Нажмите кнопку A —
-            индикатор кнопки Home погаснет.</li>
-        <li>Зажмите триггеры LT и RT до упора, а затем трижды опишите как левым, так и правым стиком
-            полный круг. После этого нажмите кнопку A.</li>
+        <li>${t('drift.step1')}</li>
+        <li>${t('drift.step2')}</li>
+        <li>${t('drift.step3')}</li>
       </ol>
-      <p class="hint">
-        Пока идёт калибровка, пад нельзя трясти и трогать стики — центр записывается именно в покое.
-      </p>
+      <p class="hint">${t('drift.note')}</p>
     </div>`;
 }
 

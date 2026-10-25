@@ -3,8 +3,8 @@
 import { GameSirHid } from './hid.js';
 import {
   CLICKY_TRIGGER,
-  ZONE_LABELS,
-  FIELD_LABELS,
+  ZONE_KEYS,
+  FIELD_LABEL_KEYS,
   FUN_FIELDS,
   LIGHT_PAGE,
   MACROS,
@@ -41,6 +41,7 @@ import {
   writePageDiff,
 } from './protocol.js';
 import { actionCount, actionLabel, actionOptions, loadActions } from './actions.js';
+import { I18nError, LANGS, applyStatic, currentLang, onLangChange, setLang, t } from './i18n.js';
 import { startLiveView } from './live.js';
 import { buildUdevScript } from './udev.js';
 
@@ -65,9 +66,24 @@ const log = (msg) => {
   logEl.textContent += `${msg}\n`;
   logEl.scrollTop = logEl.scrollHeight;
 };
+// Status is shown in the active language, so key-based messages are remembered and
+// re-translated when the language changes. Raw text (device errors) cannot be.
+let statusState = null;
 const status = (msg, cls = '') => {
+  statusState = null;
   statusEl.textContent = msg;
   statusEl.className = `status ${cls}`;
+};
+const statusKey = (key, params = {}, cls = '') => {
+  statusState = { key, params, cls };
+  statusEl.textContent = t(key, params);
+  statusEl.className = `status ${cls}`;
+};
+// Keyed errors are re-translated on a language switch; raw ones (browser/device
+// text) are shown as they came.
+const showError = (err, cls = 'warn') => {
+  if (err?.i18nKey) statusKey(err.i18nKey, err.i18nParams ?? {}, cls);
+  else status(String(err?.message ?? err), cls);
 };
 
 function hex(bytes) {
@@ -76,7 +92,7 @@ function hex(bytes) {
 
 function renderEditor() {
   if (!desired) {
-    editorEl.innerHTML = '<p class="hint">Нажмите «Прочитать», чтобы загрузить профиль с пада.</p>';
+    editorEl.innerHTML = `<p class="hint">${t('editor.empty')}</p>`;
     return;
   }
 
@@ -92,12 +108,12 @@ function renderEditor() {
     const fields = FUN_FIELDS.map((field) => {
       const value = desired[field.offset];
       if (field.type === 'bool') {
-        return `<label>${field.label}<input type="checkbox" data-offset="${field.offset}" ${value ? 'checked' : ''}></label>`;
+        return `<label>${t(field.labelKey)}<input type="checkbox" data-offset="${field.offset}" ${value ? 'checked' : ''}></label>`;
       }
       if (field.type === 'select') {
         const options =
           field.id === 'reportRate'
-            ? REPORT_RATES
+            ? REPORT_RATES.map((rate) => ({ value: rate.value, label: t(rate.labelKey) }))
             : field.options.map((option) => ({ value: option, label: String(option) }));
         const rendered = options
           .map(
@@ -105,21 +121,21 @@ function renderEditor() {
               `<option value="${option.value}" ${option.value === value ? 'selected' : ''}>${option.label}</option>`,
           )
           .join('');
-        return `<label>${field.label}<select data-offset="${field.offset}">${rendered}</select></label>`;
+        return `<label>${t(field.labelKey)}<select data-offset="${field.offset}">${rendered}</select></label>`;
       }
-      return `<label>${field.label}<input type="number" min="${field.min}" max="${field.max}" data-offset="${field.offset}" value="${value}"></label>`;
+      return `<label>${t(field.labelKey)}<input type="number" min="${field.min}" max="${field.max}" data-offset="${field.offset}" value="${value}"></label>`;
     }).join('');
 
 
     return `<div class="block wide">
-      <h3>Имя профиля <small>0x${PROFILE_NAME.offset.toString(16)}</small></h3>
+      <h3>${t('editor.profileName')} <small>0x${PROFILE_NAME.offset.toString(16)}</small></h3>
       <div class="fields">
-        <label>имя, до 31 байта UTF-8
+        <label>${t('editor.profileNameHint')}
           <input type="text" id="profile-name" maxlength="31" size="28" value="${escapeAttr(decodeProfileName(desired))}">
         </label>
       </div>
       ${layoutBlock()}
-      <h3>Общие настройки <small>Fun_Data 0x20…0x3e</small></h3>
+      <h3>${t('editor.general')} <small>Fun_Data 0x20…0x3e</small></h3>
       <div class="fields">${fields}</div>
     </div>`;
   };
@@ -131,22 +147,22 @@ function renderEditor() {
         const control = isFlag
           ? `<input type="checkbox" data-offset="${offset}" ${desired[offset] ? 'checked' : ''}>`
           : `<input type="number" min="0" max="100" data-offset="${offset}" value="${desired[offset]}">`;
-        return `<label>${FIELD_LABELS[key]}${control}</label>`;
+        return `<label>${t(FIELD_LABEL_KEYS[key])}${control}</label>`;
       })
       .join('');
     return `<div class="block">
-      <h3>${block.label} <small>0x${block.offset.toString(16)}</small></h3>
+      <h3>${t(block.labelKey)} <small>0x${block.offset.toString(16)}</small></h3>
       <div class="fields">${fields}</div>
     </div>`;
   };
 
   const clickyBlock = (clicky) => `
     <div class="block">
-      <h3>${clicky.label} <small>0x${clicky.status.toString(16)}</small></h3>
+      <h3>${t(clicky.labelKey)} <small>0x${clicky.status.toString(16)}</small></h3>
       <div class="fields">
-        <label>вкл <input type="checkbox" data-offset="${clicky.status}" ${desired[clicky.status] ? 'checked' : ''}></label>
-        <label>срабатывание, % <input type="number" min="0" max="100" data-offset="${clicky.start}" value="${desired[clicky.start]}"></label>
-        <label>отпускание, % <input type="number" min="0" max="100" data-offset="${clicky.end}" value="${desired[clicky.end]}"></label>
+        <label>${t('editor.on')} <input type="checkbox" data-offset="${clicky.status}" ${desired[clicky.status] ? 'checked' : ''}></label>
+        <label>${t('editor.clickyStart')} <input type="number" min="0" max="100" data-offset="${clicky.start}" value="${desired[clicky.start]}"></label>
+        <label>${t('editor.clickyEnd')} <input type="number" min="0" max="100" data-offset="${clicky.end}" value="${desired[clicky.end]}"></label>
       </div>
     </div>`;
 
@@ -155,16 +171,19 @@ function renderEditor() {
   const layoutBlock = () => {
     const layout = readLayout(desired);
     const swapped = layout.switchLayout;
-    return `<h3>Раскладка ABXY <small>профиль ${loadedPage ?? '—'}</small></h3>
+    const current = swapped ? t('layout.switchName') : t('layout.xboxName');
+    const detail = t('layout.detail', {
+      flag: layout.flag ? t('layout.flagOn') : t('layout.flagOff'),
+      remaps: layout.remapsSwapped ? t('layout.remapsSwapped') : t('layout.remapsPlain'),
+    });
+    return `<h3>${t('layout.title')} <small>${t('layout.profile', { page: loadedPage ?? '—' })}</small></h3>
       <div class="fields">
         <span class="hint">
-          Сейчас: <strong>${swapped ? 'switch (A↔B, X↔Y)' : 'xbox (без перестановки)'}</strong>
-          (<span id="layout-detail">флаг ${layout.flag ? 'включён' : 'выключен'}, ремапы ${layout.remapsSwapped ? 'переставлены' : 'обычные'}</span>).
-          Признак switch — «флаг ИЛИ ремапы»: комбинация <strong>M + A</strong> на корпусе ставит флаг,
-          а ремапы могут остаться от прежних настроек. Кнопки ниже пишут и снимают оба маркера вместе.
+          ${t('layout.now', { current, detail })}
+          ${t('layout.explain')}
         </span>
-        <button type="button" id="layout-xbox" ${swapped ? '' : 'disabled'}>Раскладка Xbox</button>
-        <button type="button" id="layout-switch" ${swapped ? 'disabled' : ''}>Раскладка Switch</button>
+        <button type="button" id="layout-xbox" ${swapped ? '' : 'disabled'}>${t('layout.xboxButton')}</button>
+        <button type="button" id="layout-switch" ${swapped ? 'disabled' : ''}>${t('layout.switchButton')}</button>
       </div>
 `;
   };
@@ -173,17 +192,17 @@ function renderEditor() {
     const record = readMapping(desired, index);
     const targets = record.targets
       .map(
-        (code, slot) => `<label>цель ${slot + 1}${code ? ` → ${actionLabel(code)}` : ''}
+        (code, slot) => `<label>${t('mapping.target', { slot: slot + 1 })}${code ? ` → ${actionLabel(code)}` : ''}
           <select data-mapping-index="${index}" data-mapping-field="target${slot}">${actionOptions(code)}</select>
         </label>`,
       )
       .join('');
     return `<div class="block wide">
-      <h3>${button.label} <small>0x${mappingOffset(index).toString(16)}</small></h3>
+      <h3>${t(button.labelKey)} <small>0x${mappingOffset(index).toString(16)}</small></h3>
       <div class="fields">
-        <label>turbo <input type="checkbox" data-mapping-index="${index}" data-mapping-field="turbo" ${record.turbo ? 'checked' : ''}></label>
-        <label>turbo, скорость <input type="number" min="0" max="255" data-mapping-index="${index}" data-mapping-field="turboSpeed" value="${record.turboSpeed}"></label>
-        <label>toggle по нажатию <input type="checkbox" data-mapping-index="${index}" data-mapping-field="toggle" ${record.toggle ? 'checked' : ''}></label>
+        <label>${t('mapping.turbo')} <input type="checkbox" data-mapping-index="${index}" data-mapping-field="turbo" ${record.turbo ? 'checked' : ''}></label>
+        <label>${t('mapping.turboSpeed')} <input type="number" min="0" max="255" data-mapping-index="${index}" data-mapping-field="turboSpeed" value="${record.turboSpeed}"></label>
+        <label>${t('mapping.toggle')} <input type="checkbox" data-mapping-index="${index}" data-mapping-field="toggle" ${record.toggle ? 'checked' : ''}></label>
       </div>
       <div class="fields">${targets}</div>
     </div>`;
@@ -201,7 +220,7 @@ function renderEditor() {
           <td>${
             index < MACRO_MAX_STEPS - 1
               ? `<input type="number" min="0" max="10000" data-macro="${item.id}" data-step="${index}" data-field="delay" value="${step.delay}">`
-              : '<span class="hint">последний шаг без задержки</span>'
+              : `<span class="hint">${t('macro.lastStepNoDelay')}</span>`
           }</td>
         </tr>`,
       )
@@ -209,34 +228,31 @@ function renderEditor() {
     return `<div class="block wide">
       <h3>${item.label} <small>0x${item.base.toString(16)}</small></h3>
       <div class="fields">
-        <label>макрос вкл <input type="checkbox" data-macro="${item.id}" data-field="enable" ${macro.enable ? 'checked' : ''}></label>
-        <label>запуск по нажатию <input type="checkbox" data-macro="${item.id}" data-field="keyOpen" ${macro.keyOpen ? 'checked' : ''}></label>
-        <label>цикл <input type="checkbox" data-macro="${item.id}" data-field="cycle" ${macro.cycle ? 'checked' : ''}></label>
-        <label>пауза цикла, мс <input type="number" min="0" max="65535" data-macro="${item.id}" data-field="cycleTime" value="${macro.cycleTime}"></label>
-        <label>шагов <input type="number" min="0" max="${MACRO_MAX_STEPS}" data-macro="${item.id}" data-field="stepCount" value="${macro.stepCount}"></label>
-        <button type="button" data-macro="${item.id}" data-field="addStep">+ шаг</button>
-        <button type="button" data-macro="${item.id}" data-field="dropStep">− шаг</button>
+        <label>${t('macro.enable')} <input type="checkbox" data-macro="${item.id}" data-field="enable" ${macro.enable ? 'checked' : ''}></label>
+        <label>${t('macro.keyOpen')} <input type="checkbox" data-macro="${item.id}" data-field="keyOpen" ${macro.keyOpen ? 'checked' : ''}></label>
+        <label>${t('macro.cycle')} <input type="checkbox" data-macro="${item.id}" data-field="cycle" ${macro.cycle ? 'checked' : ''}></label>
+        <label>${t('macro.cycleTime')} <input type="number" min="0" max="65535" data-macro="${item.id}" data-field="cycleTime" value="${macro.cycleTime}"></label>
+        <label>${t('macro.steps')} <input type="number" min="0" max="${MACRO_MAX_STEPS}" data-macro="${item.id}" data-field="stepCount" value="${macro.stepCount}"></label>
+        <button type="button" data-macro="${item.id}" data-field="addStep">${t('macro.addStep')}</button>
+        <button type="button" data-macro="${item.id}" data-field="dropStep">${t('macro.dropStep')}</button>
       </div>
       <table class="steps">
-        <thead><tr><th>#</th><th>действие</th><th>удержание, мс</th><th>задержка, мс</th></tr></thead>
+        <thead><tr><th>#</th><th>${t('macro.colAction')}</th><th>${t('macro.colHold')}</th><th>${t('macro.colDelay')}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <p class="hint">
-        В профиле под макрос отведено ${MACRO_MAX_STEPS} шагов, официальное приложение для этой модели
-        ограничивает редактор 12 шагами. Удержание и задержка — миллисекунды, кодируются 16-битным полем.
-      </p>
+      <p class="hint">${t('macro.hint', { max: MACRO_MAX_STEPS })}</p>
     </div>`;
   };
 
   const groups = [
-    { title: 'Общее', html: generalBlock() },
-    { title: 'Стики', html: STICK_BLOCKS.map(deadzoneBlock).join('') },
-    { title: 'Курки', html: [...TRIGGER_BLOCKS.map(deadzoneBlock), ...CLICKY_TRIGGER.map(clickyBlock)].join('') },
+    { title: t('group.general'), html: generalBlock() },
+    { title: t('group.sticks'), html: STICK_BLOCKS.map(deadzoneBlock).join('') },
+    { title: t('group.triggers'), html: [...TRIGGER_BLOCKS.map(deadzoneBlock), ...CLICKY_TRIGGER.map(clickyBlock)].join('') },
     {
-      title: 'Кнопки',
+      title: t('group.buttons'),
       html: MAPPING_BUTTONS.map((button, index) => mappingBlock(button, index)).join(''),
     },
-    { title: 'Макросы L4 / R4', html: MACROS.map(macroBlock).join('') },
+    { title: t('group.macros'), html: MACROS.map(macroBlock).join('') },
   ];
 
   editorEl.innerHTML = groups
@@ -287,7 +303,7 @@ function renderEditor() {
     writeLayout(desired, swap);
     updateButtons();
     renderEditor();
-    status(swap ? 'раскладка: switch (A↔B, X↔Y)' : 'раскладка: xbox (без перестановки)', 'ok');
+    statusKey(swap ? 'layout.appliedSwitch' : 'layout.appliedXbox', {}, 'ok');
   };
   editorEl.querySelector('#layout-xbox')?.addEventListener('click', () => setLayout(false));
   editorEl.querySelector('#layout-switch')?.addEventListener('click', () => setLayout(true));
@@ -329,35 +345,32 @@ function lightEditorHtml() {
 
   return `
     <div class="block wide">
-      <h3>Подсветка <small>страница 32, 635 байт</small></h3>
+      <h3>${t('light.title')} <small>${t('light.pageNote')}</small></h3>
       <div class="fields">
-        <label>активная анимация
+        <label>${t('light.activeAnimation')}
           <select data-light="configIndex">
             ${light.animations
               .map((_, index) => `<option value="${index}" ${index === active ? 'selected' : ''}>${index + 1}</option>`)
               .join('')}
           </select>
         </label>
-        <label>audio-reactive <input type="checkbox" data-light="audioReactive" ${light.audioReactive ? 'checked' : ''}></label>
-        <label>индекс эффекта <input type="number" min="0" max="255" data-light="userEffectIndex" value="${light.userEffectIndex}"></label>
-        <label>цвет профиля <input type="color" data-light="profileLed" value="${rgbToHex(light.profileLed)}"></label>
-        <label>пробуждение при подъёме <input type="checkbox" data-light="raiseWakeUp" ${light.raiseWakeUp ? 'checked' : ''}></label>
-        <label>таймаут сна <input type="number" min="0" max="255" data-light="standbyTime" value="${light.standbyTime}"></label>
-        <span class="hint">резерв: ${light.reserved.map((b) => b.toString(16).padStart(2, '0')).join(' ')}</span>
+        <label>${t('light.audioReactive')} <input type="checkbox" data-light="audioReactive" ${light.audioReactive ? 'checked' : ''}></label>
+        <label>${t('light.effectIndex')} <input type="number" min="0" max="255" data-light="userEffectIndex" value="${light.userEffectIndex}"></label>
+        <label>${t('light.profileLed')} <input type="color" data-light="profileLed" value="${rgbToHex(light.profileLed)}"></label>
+        <label>${t('light.raiseWakeUp')} <input type="checkbox" data-light="raiseWakeUp" ${light.raiseWakeUp ? 'checked' : ''}></label>
+        <label>${t('light.standbyTime')} <input type="number" min="0" max="255" data-light="standbyTime" value="${light.standbyTime}"></label>
+        <span class="hint">${t('light.reserved', { bytes: light.reserved.map((b) => b.toString(16).padStart(2, '0')).join(' ') })}</span>
       </div>
-      <h3>Анимации <small>скорость хранится инвертированной (20 − значение)</small></h3>
+      <h3>${t('light.animations')} <small>${t('light.speedNote')}</small></h3>
       <table class="steps">
-        <thead><tr><th>#</th><th>кадров</th><th>эффектов</th><th>скорость</th><th>яркость</th></tr></thead>
+        <thead><tr><th>#</th><th>${t('light.colFrames')}</th><th>${t('light.colEffects')}</th><th>${t('light.colSpeed')}</th><th>${t('light.colBrightness')}</th></tr></thead>
         <tbody>${animationRows}</tbody>
       </table>
-      <h3>Кадры анимации ${active + 1} <small>${ZONE_LABELS.join(' · ')}</small></h3>
+      <h3>${t('light.framesOf', { index: active + 1 })} <small>${ZONE_KEYS.map((key) => t(key)).join(' · ')}</small></h3>
       <table class="steps lights">
         <tbody>${frameRows}</tbody>
       </table>
-      <p class="hint">
-        Каждый кадр — цвет пяти зон: Home и четыре подсветки под кнопками ABXY. Порядок зон зависит от
-        раскладки, поэтому «левый нижний» и т.д. — по расположению на корпусе.
-      </p>
+      <p class="hint">${t('light.hint')}</p>
     </div>`;
 }
 
@@ -467,7 +480,7 @@ function updateButtons() {
   const diff = byteDiff(original, desired);
   applyBtn.disabled = diff.length === 0 || !hid;
   revertBtn.disabled = diff.length === 0;
-  applyBtn.textContent = diff.length ? `Применить (${diff.length} байт)` : 'Применить';
+  applyBtn.textContent = diff.length ? t('profile.applyCount', { count: diff.length }) : t('profile.apply');
   applyBtn.classList.toggle('pending', diff.length > 0);
   for (const id of ['activate-profile', 'copy-profile', 'restore-session']) {
     const button = document.getElementById(id);
@@ -476,12 +489,12 @@ function updateButtons() {
   const activeEl = document.getElementById('active-profile');
   if (activeEl) {
     activeEl.textContent =
-      activeProfileIndex === null ? '' : `активный профиль на паде: ${activeProfileIndex}`;
+      activeProfileIndex === null ? '' : t('profile.activeProfile', { index: activeProfileIndex });
   }
 }
 
 async function withConfig(fn) {
-  if (!hid || !hid.opened) throw new Error('нет подключения');
+  if (!hid || !hid.opened) throw new I18nError('error.notConnected');
   await enterConfig(hid);
   try {
     return await fn();
@@ -495,16 +508,16 @@ async function withConfig(fn) {
 async function takeSnapshot() {
   sessionSnapshot.clear();
   for (const page of SNAPSHOT_PAGES) {
-    status(`снимок страницы ${page}…`);
+    statusKey('status.snapshotPage', { page });
     sessionSnapshot.set(page, await withConfig(() => readPage(hid, page)));
   }
-  log(`снимок сессии снят: страницы ${[...sessionSnapshot.keys()].join(', ')}`);
+  log(`session snapshot taken: pages ${[...sessionSnapshot.keys()].join(', ')}`);
   updateButtons();
 }
 
 async function restoreSession() {
   if (!sessionSnapshot.size) {
-    status('снимок сессии пуст', 'warn');
+    statusKey('status.snapshotEmpty', {}, 'warn');
     return;
   }
   for (const [page, bytes] of sessionSnapshot) {
@@ -514,16 +527,16 @@ async function restoreSession() {
       const after = await readPage(hid, page);
       return { sent, mismatch: byteDiff(bytes, after).length };
     });
-    log(`страница ${page}: ${result.sent} пакет(ов), расхождений ${result.mismatch}`);
+    log(`page ${page}: ${result.sent} packet(s), mismatches ${result.mismatch}`);
   }
   await loadCurrent();
-  status('профили восстановлены из снимка сессии', 'ok');
+  statusKey('status.snapshotRestored', {}, 'ok');
 }
 
 async function copyProfileTo(target) {
   const source = Number(pageSel.value);
   if (target === source) {
-    status('источник и цель совпадают', 'warn');
+    statusKey('status.sameSourceTarget', {}, 'warn');
     return;
   }
   const bytes = desired.slice();
@@ -533,21 +546,23 @@ async function copyProfileTo(target) {
     const after = await readPage(hid, target);
     return { sent, mismatch: byteDiff(bytes, after).length };
   });
-  log(`профиль ${source} → ${target}: ${result.sent} пакет(ов), расхождений ${result.mismatch}`);
-  status(`профиль ${source} скопирован в ${target}`, result.mismatch ? 'warn' : 'ok');
+  log(`profile ${source} -> ${target}: ${result.sent} packet(s), mismatches ${result.mismatch}`);
+  statusKey('status.profileCopied', { source, target }, result.mismatch ? 'warn' : 'ok');
 }
 
 async function loadCurrent() {
   const page = Number(pageSel.value);
   const currentIndex = await withConfig(() => readCurrentProfile(hid));
   activeProfileIndex = currentIndex;
-  const bytes = await withConfig(() => readPage(hid, page, (p) => status(`чтение профиля ${page}: ${Math.round(p * 100)}%`)));
+  const bytes = await withConfig(() =>
+    readPage(hid, page, (p) => statusKey('status.readingPage', { page, percent: Math.round(p * 100) })),
+  );
   original = bytes;
   desired = bytes.slice();
   loadedPage = page;
   renderEditor();
   updateButtons();
-  status(`профиль ${page} прочитан, активный профиль на паде: ${currentIndex}`, 'ok');
+  statusKey('status.profileRead', { page, active: currentIndex }, 'ok');
   log(`read page ${page}: ${bytes.length} bytes`);
   return bytes;
 }
@@ -555,8 +570,8 @@ async function loadCurrent() {
 async function applyChanges() {
   const page = Number(pageSel.value);
   if (loadedPage !== page) {
-    status('профиль на странице сменился — сначала прочитайте выбранный профиль', 'warn');
-    log(`apply отклонён: буфер от страницы ${loadedPage ?? '?'}, выбрана ${page}`);
+    statusKey('status.profileChanged', {}, 'warn');
+    log(`apply rejected: buffer from page ${loadedPage ?? '?'}, selected ${page}`);
     return;
   }
   const payment = await withConfig(async () => {
@@ -566,15 +581,15 @@ async function applyChanges() {
   });
   const diff = byteDiff(desired, payment.back);
   if (diff.length) {
-    log(`ВНИМАНИЕ: после записи отличаются байты ${diff.map((i) => `0x${i.toString(16)}`).join(', ')}`);
-    status('запись не подтвердилась', 'warn');
+    log(`WARNING: after the write these bytes differ: ${diff.map((i) => `0x${i.toString(16)}`).join(', ')}`);
+    statusKey('status.writeNotConfirmed', {}, 'warn');
     return;
   }
   original = payment.back;
   desired = payment.back.slice();
   updateButtons();
   renderEditor();
-  status(`применено: ${payment.sent} пакет(ов), прочитано назад и совпало`, 'ok');
+  statusKey('status.applied', { packets: payment.sent }, 'ok');
 }
 
 function downloadBackup(pages) {
@@ -594,22 +609,22 @@ function downloadBackup(pages) {
 async function backupAll() {
   const pages = {};
   for (const page of [...PROFILE_PAGES, SHIFT_PAGE, LIGHT_PAGE]) {
-    status(`бэкап страницы ${page}...`);
+    statusKey('status.backupPage', { page });
     pages[page] = await withConfig(() => readPage(hid, page));
   }
   downloadBackup(pages);
-  status('бэкап скачан', 'ok');
+  statusKey('status.backupDone', {}, 'ok');
   log(`backup: pages ${Object.keys(pages).join(', ')}`);
 }
 
 async function restoreFromFile(file) {
   const data = JSON.parse(await file.text());
-  if (!data.pages) throw new Error('в файле нет поля pages');
+  if (!data.pages) throw new I18nError('error.noPagesInFile');
   for (const [pageStr, values] of Object.entries(data.pages)) {
     const page = Number(pageStr);
     const target = Uint8Array.from(values);
     if (target.length !== pageLength(page)) {
-      log(`страница ${page}: длина ${target.length}, ожидалось ${pageLength(page)} — пропуск`);
+      log(`page ${page}: length ${target.length}, expected ${pageLength(page)} - skipped`);
       continue;
     }
     const result = await withConfig(async () => {
@@ -618,10 +633,10 @@ async function restoreFromFile(file) {
       const after = await readPage(hid, page);
       return { sent, mismatch: byteDiff(target, after).length };
     });
-    log(`страница ${page}: ${result.sent} пакет(ов), расхождений ${result.mismatch}`);
+    log(`page ${page}: ${result.sent} packet(s), mismatches ${result.mismatch}`);
   }
   await loadCurrent();
-  status('восстановление завершено', 'ok');
+  statusKey('status.restoreDone', {}, 'ok');
 }
 
 // copy buttons in the permissions section
@@ -638,10 +653,10 @@ document.getElementById('activate-profile')?.addEventListener('click', async () 
     await withConfig(() => switchProfile(hid, page));
     activeProfileIndex = page;
     updateButtons();
-    status(`активным на паде сделан профиль ${page}`, 'ok');
+    statusKey('status.profileActivated', { page }, 'ok');
     log(`switchProfile ${page}`);
   } catch (err) {
-    status(`переключение профиля: ${err.message}`, 'warn');
+    statusKey('status.switchFailed', { message: err.message }, 'warn');
   }
 });
 
@@ -650,7 +665,7 @@ document.getElementById('copy-profile')?.addEventListener('click', async () => {
   try {
     await copyProfileTo(target);
   } catch (err) {
-    status(`копирование профиля: ${err.message}`, 'warn');
+    statusKey('status.copyFailed', { message: err.message }, 'warn');
   }
 });
 
@@ -658,7 +673,7 @@ document.getElementById('restore-session')?.addEventListener('click', async () =
   try {
     await restoreSession();
   } catch (err) {
-    status(`откат к снимку: ${err.message}`, 'warn');
+    statusKey('status.snapshotFailed', { message: err.message }, 'warn');
   }
 });
 
@@ -666,12 +681,12 @@ document.querySelectorAll('pre.cmd .copy').forEach((btn) => {
   btn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(copyTarget(btn));
-      btn.textContent = 'скопировано';
+      btn.textContent = t('common.copied');
       setTimeout(() => {
-        btn.textContent = 'копировать';
+        btn.textContent = t('perms.copy');
       }, 1500);
     } catch (err) {
-      log(`не удалось скопировать: ${err.message}`);
+      log(`copy failed: ${err.message}`);
     }
   });
 });
@@ -689,7 +704,7 @@ function setCmd(id, text) {
 function renderUdev() {
   const groupSel = document.getElementById('udev-group');
   if (!groupSel) return;
-  const script = buildUdevScript({ groupId: groupSel.value });
+  const script = buildUdevScript({ groupId: groupSel.value, comment: t('perms.verifyComment') });
   setCmd('udev-rule', script.rule);
   setCmd('udev-install', `${script.install}\n${script.reload}`);
   setCmd('udev-verify', script.verify);
@@ -703,15 +718,25 @@ document.getElementById('udev-copy-all')?.addEventListener('click', async (event
   const btn = event.currentTarget;
   try {
     await navigator.clipboard.writeText(udevOneShot);
-    btn.textContent = 'скопировано';
+    btn.textContent = t('common.copied');
     setTimeout(() => {
-      btn.textContent = 'Скопировать установку целиком';
+      btn.textContent = t('perms.copyAll');
     }, 1500);
   } catch (err) {
-    log(`не удалось скопировать: ${err.message}`);
+    log(`copy failed: ${err.message}`);
   }
 });
 renderUdev();
+
+// --- language picker ---------------------------------------------------------
+
+const langSel = document.getElementById('lang');
+if (langSel) {
+  langSel.innerHTML = LANGS.map(
+    (lang) => `<option value="${lang.id}" ${lang.id === currentLang() ? 'selected' : ''}>${lang.label}</option>`,
+  ).join('');
+  langSel.addEventListener('change', () => setLang(langSel.value));
+}
 
 function showPermissions() {
   const section = document.getElementById('perms');
@@ -722,15 +747,15 @@ function showPermissions() {
 
 document.getElementById('connect').addEventListener('click', async () => {
   try {
-    log('запрос доступа к WebHID...');
+    log('requesting WebHID access...');
     hid = await GameSirHid.request();
-    status(`подключено: ${hid.info}`, 'ok');
+    statusKey('status.connected', { info: hid.info }, 'ok');
     log(`device: ${hid.info}`);
     document.getElementById('diagnose').disabled = false;
     log(`collections: ${JSON.stringify(hid.describe().collections)}`);
     if (!(await hid.ping())) {
-      status('устройство открыто, но конфиг-канал молчит', 'warn');
-      log('конфиг-канал не отвечает: нажмите «Диагностика» и перешлите вывод');
+      statusKey('status.configSilent', {}, 'warn');
+      log('config channel does not answer: press "Diagnose" and share the output');
       return;
     }
     const fw = await withConfig(() => readFirmware(hid));
@@ -740,22 +765,22 @@ document.getElementById('connect').addEventListener('click', async () => {
   } catch (err) {
     const msg = String(err.message ?? err);
     if (/Failed to open|access denied|not allowed/i.test(msg)) {
-      status('нет доступа к /dev/hidraw*', 'warn');
+      statusKey('status.noAccess', {}, 'warn');
       log(
         [
-          'нет доступа к ноде. Проверьте:',
-          '  1) правило установлено: ls -l /etc/udev/rules.d/70-gamesir.rules',
-          '  2) правила применены: sudo udevadm control --reload-rules && sudo udevadm trigger',
-          '  3) нода доступна пользователю: ls -l /dev/hidraw* && getfacl /dev/hidraw6',
-          '     (после сна пада нода пересоздаётся; правило должно быть на месте)',
-          'подробности и команды — в разделе «Права на устройство» ниже.',
+          'no access to the node. Check:',
+          '  1) rule installed: ls -l /etc/udev/rules.d/70-gamesir.rules',
+          '  2) rules applied: sudo udevadm control --reload-rules && sudo udevadm trigger',
+          '  3) node available to the user: ls -l /dev/hidraw* && getfacl /dev/hidraw6',
+          '     (the node is recreated after the pad sleeps; the rule must stay in place)',
+          'details and commands are in the "Device permissions" section below.',
         ].join('\n'),
       );
       showPermissions();
     } else {
-      status(msg, 'warn');
+      showError(err);
     }
-    log(`ошибка: ${msg}`);
+    log(`error: ${msg}`);
   }
 });
 
@@ -763,59 +788,75 @@ document.getElementById('diagnose').addEventListener('click', async () => {
   if (!hid) return;
   try {
     const desc = hid.describe();
-    log(`--- диагностика\n${JSON.stringify(desc, null, 1)}`);
-    log(`--- трассировка входящих отчётов (1.2 с)`);
+    log(`--- diagnostics\n${JSON.stringify(desc, null, 1)}`);
+    log('--- incoming report trace (1.2 s)');
     const trace = await hid.trace(1200);
     log(`reports: ${JSON.stringify(trace.reports)}`);
-    log(`ответ на 0x01: ${JSON.stringify(trace.enterConfigFrames)}`);
+    log(`reply to 0x01: ${JSON.stringify(trace.enterConfigFrames)}`);
     const granted = await GameSirHid.granted();
-    log(`granted devices: ${granted.map((d) => `${d.productName} ${d.vendorId}:${d.productId}`).join(', ') || 'нет'}`);
+    log(`granted devices: ${granted.map((d) => `${d.productName} ${d.vendorId}:${d.productId}`).join(', ') || 'none'}`);
   } catch (err) {
-    log(`диагностика: ${err.message}`);
+    log(`diagnostics: ${err.message}`);
   }
 });
 
-readBtn.addEventListener('click', () => loadCurrent().catch((err) => status(err.message, 'warn')));
+readBtn.addEventListener('click', () => loadCurrent().catch((err) => showError(err)));
 
 // Profiles are read automatically when the selection changes, so switching slots
 // never shows stale values (requires an open connection).
 pageSel.addEventListener('change', () => {
   if (!hid || !hid.opened) return;
-  loadCurrent().catch((err) => status(`чтение профиля: ${err.message}`, 'warn'));
-});applyBtn.addEventListener('click', () => applyChanges().catch((err) => status(err.message, 'warn')));
+  loadCurrent().catch((err) => statusKey('status.readFailed', { message: err.message }, 'warn'));
+});
+applyBtn.addEventListener('click', () => applyChanges().catch((err) => showError(err)));
 revertBtn.addEventListener('click', () => {
   desired = original.slice();
   renderEditor();
   updateButtons();
 });
-document.getElementById('backup').addEventListener('click', () => backupAll().catch((err) => status(err.message, 'warn')));
+document.getElementById('backup').addEventListener('click', () => backupAll().catch((err) => showError(err)));
 document.getElementById('restore').addEventListener('change', (event) => {
   const file = event.target.files[0];
-  if (file) restoreFromFile(file).catch((err) => status(`восстановление: ${err.message}`, 'warn'));
+  if (file) restoreFromFile(file).catch((err) => statusKey('status.restoreFailed', { message: err.message }, 'warn'));
 });
 
 if (!GameSirHid.supported) {
-  status('WebHID недоступен в этом браузере', 'warn');
+  statusKey('status.webhidMissing', {}, 'warn');
 }
 
 // Live view also reports the mode the pad is currently in, which decides whether
 // the vendor config channel exists at all.
 let padMode = null;
-startLiveView(document, (meta) => {
-  padMode = meta?.mode ?? null;
+const renderModeHint = (meta) => {
   const el = document.getElementById('modehint');
+  if (!el) return;
   if (!meta) {
     el.textContent = '';
     el.className = 'hint';
     return;
   }
   if (meta.mode.configurable) {
-    el.textContent = `Режим: ${meta.mode.label} — ${meta.mode.product}. Конфигурация доступна.`;
+    el.textContent = t('mode.configurable', { label: meta.mode.label, product: meta.mode.product });
     el.className = 'hint ok';
   } else {
     el.textContent = `${meta.mode.label}: ${meta.mode.hint}`;
     el.className = 'hint warn';
   }
+};
+startLiveView(document, (meta) => {
+  padMode = meta?.mode ?? null;
+  renderModeHint(meta);
+});
+
+// Re-render everything the language switch affects. Unsaved edits live in
+// `desired`, so the editor is rebuilt from the buffer and nothing is lost.
+onLangChange(() => {
+  if (langSel) langSel.value = currentLang();
+  renderUdev();
+  updateButtons();
+  renderEditor();
+  renderModeHint(padMode ? { mode: padMode } : null);
+  if (statusState) statusEl.textContent = t(statusState.key, statusState.params);
 });
 
 // A previously granted device can be opened without the picker.
@@ -823,16 +864,18 @@ GameSirHid.granted()
   .then((devices) => {
     if (!devices.length) return;
     const names = devices.map((d) => `${d.productName} (${d.vendorId.toString(16)}:${d.productId.toString(16)})`);
-    log(`разрешение уже выдано: ${names.join(', ')} — можно нажать «Подключить» без выбора устройства`);
+    log(`permission already granted: ${names.join(', ')} - "Connect" works without the picker`);
   })
   .catch(() => {});
 
+applyStatic();
+if (!statusState) statusKey('status.notConnected');
 updateButtons();
 
 // The action dictionary drives the button/macro selects, so render once it is in.
 loadActions()
   .then(() => {
     renderEditor();
-    log(`словарь действий: ${actionCount()} записей`);
+    log(`action dictionary: ${actionCount()} entries`);
   })
-  .catch((err) => log(`словарь действий: ${err.message}`));
+  .catch((err) => log(`action dictionary: ${err.message}`));

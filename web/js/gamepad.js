@@ -5,6 +5,8 @@
 // The vendor/product part is a string, so it needs parsing, and layouts differ
 // between browsers - hence the tolerant patterns below.
 
+import { t } from './i18n.js';
+
 export const VENDOR_GAMESIR = 0x3537;
 export const VENDOR_SONY = 0x054c;
 export const VENDOR_NINTENDO = 0x057e;
@@ -72,27 +74,27 @@ export function describeMode(vendorId, productId) {
   if (vendorId === VENDOR_SONY) {
     return {
       mode: 'ds4',
-      label: 'DS4 / PS4 эмуляция',
+      label: t('mode.ds4'),
       configurable: false,
       product: 'Wireless Controller',
-      hint: 'Вендорский канал недоступен. Переключи на паде View + Menu (~2 с) до зелёного индикатора HOME.',
+      hint: t('mode.ds4Hint'),
     };
   }
   if (vendorId === VENDOR_NINTENDO) {
     return {
       mode: 'switch',
-      label: 'Nintendo Switch',
+      label: t('mode.switch'),
       configurable: false,
       product: 'Pro Controller',
-      hint: 'Вендорский канал недоступен. Переключи на паде View + Menu (~2 с) до зелёного индикатора HOME.',
+      hint: t('mode.switchHint'),
     };
   }
   return {
     mode: 'unknown',
-    label: 'неизвестный вендор',
+    label: t('mode.unknown'),
     configurable: false,
     product: '',
-    hint: vendorId === null ? 'Не удалось разобрать vendor из gamepad.id этого браузера.' : '',
+    hint: vendorId === null ? t('mode.noVendor') : '',
   };
 }
 
@@ -167,7 +169,7 @@ export function readButtons(pad) {
   const known = new Map(STANDARD_BUTTONS.map((entry) => [entry.index, entry.label]));
   return buttons.map((button, index) => ({
     index,
-    label: known.get(index) ?? `доп ${index - 16}`,
+    label: known.get(index) ?? t('live.extraButton', { index: index - 16 }),
     standard: known.has(index),
     pressed: Boolean(button?.pressed),
     value: Number.isFinite(button?.value) ? button.value : 0,

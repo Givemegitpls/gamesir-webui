@@ -9,6 +9,10 @@ import {
   readButtons,
   readInputs,
 } from '../web/js/gamepad.js';
+import { setLang } from '../web/js/i18n.js';
+
+// Labels are localised, so pin the language instead of depending on the host.
+setLang('ru');
 
 const failures = [];
 const check = (name, cond, extra = '') => {

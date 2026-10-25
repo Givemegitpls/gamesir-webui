@@ -7,6 +7,8 @@
 // Note: WebHID strips the report id from `event.data`, so indexes here are one
 // lower than in a raw hidraw capture (which includes the id byte).
 
+import { I18nError, t } from './i18n.js';
+
 export const VENDOR_ID = 0x3537;
 export const REPORT_OUT = 0x0f;
 export const REPORT_CFG_IN = 0x10;
@@ -46,12 +48,12 @@ export class GameSirHid {
 
   static async request() {
     if (!GameSirHid.supported) {
-      throw new Error('WebHID недоступен: нужен Chromium и secure context');
+      throw new I18nError('error.webhidUnsupported');
     }
     const devices = await navigator.hid.requestDevice({
       filters: [{ vendorId: VENDOR_ID }],
     });
-    if (!devices.length) throw new Error('устройство не выбрано');
+    if (!devices.length) throw new I18nError('error.noDeviceSelected');
     const device = devices[0];
     if (!device.opened) await device.open();
     return new GameSirHid(device);
@@ -92,7 +94,7 @@ export class GameSirHid {
       try {
         await this.device.sendReport(REPORT_OUT, payload);
       } catch (err) {
-        throw new DeviceGoneError(`запись не удалась: ${err.message}`);
+        throw new DeviceGoneError(t('error.writeFailed', { message: err.message }));
       }
       await sleep(window);
     } finally {
@@ -109,7 +111,7 @@ export class GameSirHid {
       if (frames.length) return frames;
       await sleep(60 + i * 60);
     }
-    throw new Error(`нет ответа на команду 0x${cmd.toString(16)} — пад спит? Нажмите кнопку на нём и повторите`);
+    throw new I18nError('error.noReply', { cmd: `0x${cmd.toString(16)}` });
   }
 
   // True when the config channel answers at all. Note: the heartbeat (0xF2) is

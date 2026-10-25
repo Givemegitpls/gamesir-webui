@@ -17,6 +17,10 @@ import {
   writeMapping,
 } from '../web/js/protocol.js';
 
+import { setLang, t } from '../web/js/i18n.js';
+
+setLang('ru');
+
 let failures = 0;
 for (const path of process.argv.slice(2)) {
   const page = new Uint8Array(readFileSync(path));
@@ -38,7 +42,7 @@ for (const path of process.argv.slice(2)) {
 
   const mappingTargets = MAPPING_BUTTONS.map((button, index) => {
     const record = readMapping(page, index);
-    return record.targets.some(Boolean) ? `${button.label}→${record.targets.filter(Boolean).join(',')}` : null;
+    return record.targets.some(Boolean) ? `${t(button.labelKey)}→${record.targets.filter(Boolean).join(',')}` : null;
   }).filter(Boolean);
 
   const macroSummary = MACROS.map((macro) => {

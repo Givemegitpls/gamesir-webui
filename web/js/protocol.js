@@ -29,22 +29,24 @@ export function pageLength(page) {
 
 // Deadzone blocks, grouped: sticks first, then triggers.
 // Layout: [enabled flag, inner deadzone, outer deadzone, anti begin, anti end]
+// Labels are i18n keys: the UI translates them, this module stays data-only.
 export const STICK_BLOCKS = [
-  { id: 'ls', label: 'Левый стик', offset: 0x226, fields: { enabled: 0x228, center: 0x229, edge: 0x22a, antiBegin: 0x22b, antiEnd: 0x22c } },
-  { id: 'rs', label: 'Правый стик', offset: 0x246, fields: { enabled: 0x248, center: 0x249, edge: 0x24a, antiBegin: 0x24b, antiEnd: 0x24c } },
+  { id: 'ls', labelKey: 'block.stick.ls', offset: 0x226, fields: { enabled: 0x228, center: 0x229, edge: 0x22a, antiBegin: 0x22b, antiEnd: 0x22c } },
+  { id: 'rs', labelKey: 'block.stick.rs', offset: 0x246, fields: { enabled: 0x248, center: 0x249, edge: 0x24a, antiBegin: 0x24b, antiEnd: 0x24c } },
 ];
 
 export const TRIGGER_BLOCKS = [
-  { id: 'lt', label: 'LT (левый курок)', offset: 0x1ee, fields: { enabled: 0x1f0, center: 0x1f1, edge: 0x1f2, antiBegin: 0x1f3, antiEnd: 0x1f4 } },
-  { id: 'rt', label: 'RT (правый курок)', offset: 0x20a, fields: { enabled: 0x20c, center: 0x20d, edge: 0x20e, antiBegin: 0x20f, antiEnd: 0x210 } },
+  { id: 'lt', labelKey: 'block.trigger.lt', offset: 0x1ee, fields: { enabled: 0x1f0, center: 0x1f1, edge: 0x1f2, antiBegin: 0x1f3, antiEnd: 0x1f4 } },
+  { id: 'rt', labelKey: 'block.trigger.rt', offset: 0x20a, fields: { enabled: 0x20c, center: 0x20d, edge: 0x20e, antiBegin: 0x20f, antiEnd: 0x210 } },
 ];
 
 export const DEADZONE_BLOCKS = [...STICK_BLOCKS, ...TRIGGER_BLOCKS];
 
 // Clicky (hair) trigger sits 12 bytes into each trigger block: status, start %, end %.
+const CLICKY_LABEL_KEYS = { lt: 'block.clicky.lt', rt: 'block.clicky.rt' };
 export const CLICKY_TRIGGER = TRIGGER_BLOCKS.map((block) => ({
   id: block.id,
-  label: `Clicky ${block.id.toUpperCase()}`,
+  labelKey: CLICKY_LABEL_KEYS[block.id],
   status: block.offset + 12,
   start: block.offset + 13,
   end: block.offset + 14,
@@ -53,12 +55,12 @@ export const CLICKY_TRIGGER = TRIGGER_BLOCKS.map((block) => ({
 // kept for backwards compatibility with older callers
 export const QUICK_TRIGGER = CLICKY_TRIGGER;
 
-export const FIELD_LABELS = {
-  enabled: 'вкл',
-  center: 'центр',
-  edge: 'край',
-  antiBegin: 'anti начало',
-  antiEnd: 'anti конец',
+export const FIELD_LABEL_KEYS = {
+  enabled: 'field.enabled',
+  center: 'field.center',
+  edge: 'field.edge',
+  antiBegin: 'field.antiBegin',
+  antiEnd: 'field.antiEnd',
 };
 
 // --- profile name and the general (Fun_Data) block ---------------------------
@@ -69,10 +71,10 @@ export const PROFILE_NAME = { offset: 0x000, length: 32 };
 // Field names are taken verbatim from the vendor serializer; labels come from the
 // vendor localisation where a matching string exists.
 export const FUN_FIELDS = [
-  { id: 'reportRate', label: 'Частота опроса', offset: 0x2e, type: 'select', options: [0, 1, 2] },
-  { id: 'dpadDiagonalLock', label: 'Блокировка диагоналей крестовины', offset: 0x2b, type: 'bool' },
-  { id: 'shiftEnabled', label: 'Слой Shift: включён', offset: 0x29, type: 'bool' },
-  { id: 'shiftValue', label: 'Слой Shift: значение из прошивки', offset: 0x2a, type: 'range', min: 0, max: 9 },
+  { id: 'reportRate', labelKey: 'fun.reportRate', offset: 0x2e, type: 'select', options: [0, 1, 2] },
+  { id: 'dpadDiagonalLock', labelKey: 'fun.dpadDiagonalLock', offset: 0x2b, type: 'bool' },
+  { id: 'shiftEnabled', labelKey: 'fun.shiftEnabled', offset: 0x29, type: 'bool' },
+  { id: 'shiftValue', labelKey: 'fun.shiftValue', offset: 0x2a, type: 'range', min: 0, max: 9 },
 ];
 
 // ABXY layout is expressed by two independent markers, both inside the profile:
@@ -138,7 +140,7 @@ export const LIGHT_TAIL_OFFSET = 1 + ANIMATION_COUNT * ANIMATION_LEN;
 export const MAX_SPEED = 20;
 export const MAX_BRIGHTNESS = 100;
 
-export const ZONE_LABELS = ['Home', 'левый нижний', 'правый нижний', 'левый верхний', 'правый верхний'];
+export const ZONE_KEYS = ['zone.home', 'zone.lowerLeft', 'zone.lowerRight', 'zone.upperLeft', 'zone.upperRight'];
 
 export function animationOffset(index) {
   return 1 + index * ANIMATION_LEN;
@@ -242,22 +244,22 @@ export const MAPPING_LEN = 7;
 export const MAPPING_MAX_TARGETS = 3;
 
 export const MAPPING_BUTTONS = [
-  { name: 'Up', label: 'Крестовина ↑' },
-  { name: 'Under', label: 'Крестовина ↓' },
-  { name: 'Left', label: 'Крестовина ←' },
-  { name: 'Right', label: 'Крестовина →' },
-  { name: 'L1', label: 'LB' },
-  { name: 'R1', label: 'RB' },
-  { name: 'L3', label: 'L3 (нажатие стика)' },
-  { name: 'R3', label: 'R3 (нажатие стика)' },
-  { name: 'CRO', label: 'A' },
-  { name: 'CIR', label: 'B' },
-  { name: 'SQU', label: 'X' },
-  { name: 'TRI', label: 'Y' },
-  { name: 'PS', label: 'Home' },
-  { name: 'Sel', label: 'View' },
-  { name: 'Sta', label: 'Menu' },
-  { name: 'Camera', label: 'Capture' },
+  { name: 'Up', labelKey: 'pad.dpadUp' },
+  { name: 'Under', labelKey: 'pad.dpadDown' },
+  { name: 'Left', labelKey: 'pad.dpadLeft' },
+  { name: 'Right', labelKey: 'pad.dpadRight' },
+  { name: 'L1', labelKey: 'pad.lb' },
+  { name: 'R1', labelKey: 'pad.rb' },
+  { name: 'L3', labelKey: 'pad.l3Press' },
+  { name: 'R3', labelKey: 'pad.r3Press' },
+  { name: 'CRO', labelKey: 'pad.a' },
+  { name: 'CIR', labelKey: 'pad.b' },
+  { name: 'SQU', labelKey: 'pad.x' },
+  { name: 'TRI', labelKey: 'pad.y' },
+  { name: 'PS', labelKey: 'pad.home' },
+  { name: 'Sel', labelKey: 'pad.view' },
+  { name: 'Sta', labelKey: 'pad.menu' },
+  { name: 'Camera', labelKey: 'pad.capture' },
 ];
 
 export function mappingOffset(index) {
@@ -356,9 +358,9 @@ export function writeMacro(page, base, macro) {
 
 // Verified against the vendor UI: this series exposes 250 / 500 / 1000 Hz as 0/1/2.
 export const REPORT_RATES = [
-  { value: 0, label: '250 Гц' },
-  { value: 1, label: '500 Гц' },
-  { value: 2, label: '1000 Гц' },
+  { value: 0, labelKey: 'rate.250' },
+  { value: 1, labelKey: 'rate.500' },
+  { value: 2, labelKey: 'rate.1000' },
 ];
 
 export function decodeProfileName(pageBytes) {
@@ -439,12 +441,12 @@ export async function writePageDiff(hid, page, before, after, log = () => {}) {
     }
   }
   if (!runs.length) {
-    log('изменений нет — ничего не отправлено');
+    log('no changes - nothing sent');
     return 0;
   }
   let packets = 0;
   for (const [from, to] of runs) {
-    log(`диапазон 0x${from.toString(16)}..0x${(to - 1).toString(16)} (${to - from} байт)`);
+    log(`range 0x${from.toString(16)}..0x${(to - 1).toString(16)} (${to - from} bytes)`);
     for (let offset = from; offset < to; offset += CHUNK) {
       const len = Math.min(CHUNK, to - offset);
       const args = [page, (offset >> 8) & 0xff, offset & 0xff, len, ...after.slice(offset, offset + len)];

@@ -62,6 +62,17 @@ select, input[type="number"] {
 .status.ok { color: var(--ok); }
 .status.warn { color: var(--warn); }
 
+/* language picker, aligned with the header buttons */
+.lang { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); }
+.lang select {
+  background: #10141c;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 8px;
+  width: auto;
+}
+
 .hint { color: var(--dim); margin: 4px 0; }
 .hint.ok { color: var(--ok); }
 .hint.warn { color: var(--warn); }

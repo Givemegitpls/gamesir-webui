@@ -98,8 +98,12 @@ check(
 check(
   'drift guide contains the full calibration steps',
   (() => {
-    const src = readFileSync(join(root, 'web/js/live.js'), 'utf8');
+    const src = readFileSync(join(root, 'web/js/locales/ru.js'), 'utf8');
+    const live = readFileSync(join(root, 'web/js/live.js'), 'utf8');
     return (
+      live.includes('drift.step1') &&
+      live.includes('drift.step2') &&
+      live.includes('drift.step3') &&
       src.includes('Калибровка стиков и триггеров') &&
       src.includes('медленно мигать белым') &&
       src.includes('Не касайтесь триггеров LT и RT') &&
