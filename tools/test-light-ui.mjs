@@ -48,11 +48,19 @@ check('eight frame rows are rendered',
 check('every colour has a hex twin',
   count(/data-light-hex="\d+"/g) === FRAME_COUNT * EDITABLE_ZONE_INDEXES.length,
   String(count(/data-light-hex="\d+"/g)));
-check('unused frames are dimmed', count(/<tr class="dim">/g) === FRAME_COUNT - light.animations[0].keyFrameCount,
-  `dim=${count(/<tr class="dim">/g)} used=${light.animations[0].keyFrameCount}`);
+check('the preset palette is rendered', count(/data-light-preset="/g) === 20,
+  String(count(/data-light-preset="/g)));
+check('four parameter sliders with value boxes',
+  count(/type="range"/g) === 4 && count(/<output class="val">/g) === 4,
+  `${count(/type="range"/g)} sliders, ${count(/<output class="val">/g)} outputs`);
+check('unused frames are dimmed', count(/class="light-row dim"/g) === FRAME_COUNT - light.animations[0].keyFrameCount,
+  `dim=${count(/class="light-row dim"/g)} used=${light.animations[0].keyFrameCount}`);
 check('colour inputs carry six-digit hex', !/type="color" value="(?!#[0-9a-f]{6}")/i.test(html));
 check('previews use the frame colours',
   html.includes(rgbToHex(light.animations[0].frames[0][0])));
+check('preview strips have one dot per editable slot',
+  count(/<i style="background:#/g) === FRAME_COUNT * EDITABLE_ZONE_INDEXES.length,
+  String(count(/<i style="background:#/g)));
 check('speed is shown uninverted (0..20)',
   new RegExp(`data-light-field="speed" value="${light.animations[0].speed}"`).test(html),
   `stored=${page[animationOffset(0) + 2]} shown=${light.animations[0].speed}`);

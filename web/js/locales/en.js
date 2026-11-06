@@ -202,6 +202,8 @@ export default {
   'light.animations': 'Animations',
   'light.preview': 'Preview',
   'light.hexHint': 'hex colour, e.g. #ff8800',
+  'light.palette': 'Palette',
+  'light.pickCell': 'pick a colour in the frame table first',
   'light.tabHint': 'animation tabs, the active one is marked',
   'light.activeMark': 'active',
   'light.speedNote': 'speed is stored inverted (20 − value)',

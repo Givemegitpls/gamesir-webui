@@ -205,6 +205,8 @@ export default {
   'light.animations': 'Анимации',
   'light.preview': 'Предпросмотр',
   'light.hexHint': 'hex-код цвета, например #ff8800',
+  'light.palette': 'Палитра',
+  'light.pickCell': 'сначала выберите цвет в таблице кадров',
   'light.tabHint': 'вкладки анимаций, активная помечена',
   'light.activeMark': 'активна',
   'light.speedNote': 'скорость хранится инвертированной (20 − значение)',

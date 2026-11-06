@@ -3,6 +3,7 @@
 import { GameSirHid } from './hid.js';
 import {
   CLICKY_TRIGGER,
+  EDITABLE_ZONE_INDEXES,
   FIELD_LABEL_KEYS,
   FUN_FIELDS,
   LIGHT_PAGE,
@@ -78,6 +79,7 @@ let loadedPage = null; // which page the editor buffer belongs to
 let lightTab = 0; // which animation the lighting editor shows (UI only)
 let lightOriginal = null; // page 32 as read from the pad (independent of profiles)
 let lightDesired = null; // lighting working copy
+let lightCell = null; // { frame, zone } the palette paints into
 const sessionSnapshot = new Map(); // page -> bytes as they were when we connected
 
 const SNAPSHOT_PAGES = [...PROFILE_PAGES, SHIFT_PAGE];
@@ -347,8 +349,8 @@ function applyLightAnimationField(input) {
   updateLight((light) => {
     light.animations[index][field] = Number(input.value);
   });
-  const output = input.nextElementSibling;
-  if (output && output.tagName === 'OUTPUT') output.textContent = input.value;
+  const output = input.parentElement?.querySelector('output');
+  if (output) output.textContent = input.value;
   // The frame count decides which rows are dimmed, so the table has to redraw.
   if (field === 'keyFrameCount') renderLightEditor();
 }
@@ -358,8 +360,9 @@ function applyLightFrameField(input) {
   const zone = Number(input.dataset.lightZone);
   const rgb = hexToRgb(input.value);
   updateLight((light) => {
-    light.animations[light.configIndex].frames[frame][zone] = rgb;
+    light.animations[lightTab].frames[frame][zone] = rgb;
   });
+  selectLightCell(frame, zone);
   // The text twin stays in sync, so a colour can be copied or pasted as one string.
   const hexInput = input.parentElement?.querySelector('[data-light-hex]');
   if (hexInput) hexInput.value = rgbToHex(rgb);
@@ -373,11 +376,45 @@ function applyLightHexField(input) {
   const zone = Number(input.dataset.lightHexZone);
   const rgb = hexToRgb(value);
   updateLight((light) => {
-    light.animations[light.configIndex].frames[frame][zone] = rgb;
+    light.animations[lightTab].frames[frame][zone] = rgb;
   });
+  selectLightCell(frame, zone);
   const colorInput = input.parentElement?.querySelector('input[type="color"]');
   if (colorInput) colorInput.value = rgbToHex(rgb);
   input.value = rgbToHex(rgb);
+}
+
+function selectLightCell(frame, zone) {
+  lightCell = { frame, zone };
+  lightEditorEl.querySelectorAll('.colour input.swatch').forEach((input) => {
+    input.classList.toggle(
+      'selected',
+      Number(input.dataset.lightFrame) === frame && Number(input.dataset.lightZone) === zone,
+    );
+  });
+}
+
+function applyLightPreset(hex) {
+  if (!lightDesired) return;
+  if (!lightCell) {
+    statusKey('light.pickCell', {}, 'warn');
+    return;
+  }
+  const { frame, zone } = lightCell;
+  const rgb = hexToRgb(hex);
+  updateLight((light) => {
+    light.animations[lightTab].frames[frame][zone] = rgb;
+  });
+  const colorInput = lightEditorEl.querySelector(
+    `[data-light-frame="${frame}"][data-light-zone="${zone}"]`,
+  );
+  if (colorInput) colorInput.value = rgbToHex(rgb);
+  const hexInput = lightEditorEl.querySelector(`[data-light-hex="${frame}"][data-light-hex-zone="${zone}"]`);
+  if (hexInput) {
+    hexInput.value = rgbToHex(rgb);
+    hexInput.classList.remove('invalid');
+  }
+  selectLightCell(frame, zone);
 }
 
 function updateLight(mutate) {
@@ -415,6 +452,12 @@ function renderLightEditor() {
       }
     });
   });
+  lightEditorEl.querySelectorAll('[data-light-preset]').forEach((button) => {
+    button.addEventListener('click', () => applyLightPreset(button.dataset.lightPreset));
+  });
+  // Preselect the first editable cell so the palette works on the first click.
+  if (!lightCell) lightCell = { frame: 0, zone: EDITABLE_ZONE_INDEXES[0] };
+  selectLightCell(lightCell.frame, lightCell.zone);
   lightEditorEl.querySelectorAll('[data-light-tab]').forEach((button) => {
     button.addEventListener('click', () => {
       lightTab = Number(button.dataset.lightTab);

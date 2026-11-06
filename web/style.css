@@ -45,8 +45,9 @@ button {
   border-radius: 8px;
   padding: 8px 12px;
   cursor: pointer;
+  transition: border-color .2s, background-color .2s, color .2s;
 }
-button:hover:not(:disabled) { border-color: var(--accent); }
+button:hover:not(:disabled) { border-color: #cecece; }
 button:disabled { opacity: 0.45; cursor: default; }
 
 select, input[type="number"] {
@@ -338,38 +339,76 @@ pre.cmd .copy {
 .cal-nudge .right { grid-area: right; }
 .cal-nudge .down { grid-area: down; }
 
-/* lighting editor: animation tabs, colour previews, dimmed unused frames */
-.light-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+/* lighting editor (page 32): tabs, sliders, round swatches, preset palette */
+.light-misc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 0 0 14px; color: var(--dim); font-size: 12px; }
+.light-misc .switch { display: inline-flex; gap: 6px; align-items: center; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; }
+.light-misc .mini { display: inline-flex; gap: 6px; align-items: center; }
+.light-misc input[type="number"] { width: 56px; }
+.light-misc input[type="color"] { width: 34px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none; }
+
+.light-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .light-tab {
   display: grid;
-  gap: 4px;
-  padding: 6px 8px;
-  background: #10141c;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: transparent;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  min-width: 116px;
-}
-.light-tab .tab-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
-.light-tab .tab-head small { color: var(--dim); font-size: 10px; }
-.light-tab.current { border-color: var(--accent); }
-.light-tab.active { background: #1a2634; }
-.light-tab.active .tab-head small { color: var(--accent); }
-.tab-strip, .swatch-strip { display: flex; gap: 2px; }
-.swatch { display: block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0006; }
-.steps.lights td.preview { padding-left: 8px; }
-.steps.lights tr.dim { opacity: 0.4; }
-.steps.lights input[type="color"] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
-input[type="range"] { width: 120px; vertical-align: middle; }
-
-/* one colour = picker + hex text so a value can be pasted as a single string */
-.steps.lights .colour { display: inline-flex; gap: 6px; align-items: center; }
-.steps.lights input.hex {
-  width: 82px;
-  background: #10141c;
   color: var(--fg);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 2px 4px;
-  font: 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  min-width: 108px;
+  transition: border-color .2s, background-color .2s, box-shadow .2s;
 }
-.steps.lights input.hex.invalid { border-color: var(--warn); color: var(--warn); }
+.light-tab:hover:not(:disabled) { border-color: #cecece; }
+.light-tab.current { border-color: var(--accent); }
+.light-tab .tab-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--dim); }
+.light-tab.active .tab-head em { color: var(--accent); font-style: normal; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.tab-strip { display: flex; gap: 4px; }
+.strip-dot { width: 14px; height: 14px; border-radius: 50%; display: block; border: 1px solid rgba(0, 0, 0, .4); }
+
+.params { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 20px; margin: 0 0 6px; }
+.param { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; color: var(--dim); font-size: 12px; }
+.param output.val {
+  width: 40px; height: 22px; line-height: 20px; text-align: center;
+  background: #0d0512; color: var(--fg); border: 1px solid var(--line); border-radius: 5px;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.param input[type="range"] { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--accent); }
+
+.light-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+.light-table th {
+  text-align: left; font-weight: 400; font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--dim); padding: 0 6px 4px;
+}
+.light-table td { padding: 4px 6px; vertical-align: middle; }
+.light-row td { border-top: 1px solid rgba(255, 255, 255, .04); }
+.light-row.dim td { opacity: .4; }
+.light-table td.idx { color: var(--dim); font-size: 12px; width: 24px; font-variant-numeric: tabular-nums; }
+
+.colour { display: inline-flex; align-items: center; gap: 8px; }
+.colour input.swatch {
+  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;
+  background: none; cursor: pointer; -webkit-appearance: none; appearance: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .10);
+}
+.colour input.swatch.selected { box-shadow: 0 0 0 3px var(--accent); }
+.colour input.swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.colour input.swatch::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.colour input.hex {
+  width: 84px; background: #0d0512; color: var(--fg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 6px; font: 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  transition: border-color .2s, color .2s, outline-color .2s;
+}
+.colour input.hex:hover { border-color: #cecece; }
+.colour input.hex:focus { outline: 1px solid var(--accent); }
+.colour input.hex.invalid { border-color: var(--warn); color: var(--warn); }
+
+.preview-strip { display: flex; gap: 4px; }
+.preview-strip i { width: 16px; height: 16px; border-radius: 4px; display: block; border: 1px solid rgba(0, 0, 0, .4); }
+
+.palette { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.palette .preset {
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, .35); cursor: pointer;
+  transition: box-shadow .2s, border-color .2s;
+}
+.palette .preset:hover { box-shadow: 0 0 0 3px rgba(255, 255, 255, .18); border-color: #cecece; }
