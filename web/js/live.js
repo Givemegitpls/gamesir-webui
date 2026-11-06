@@ -301,6 +301,7 @@ function driftHtml(stick, magnitude, steadyFor) {
         <li>${t('drift.step3')}</li>
       </ol>
       <p class="hint">${t('drift.note')}</p>
+      <p class="hint">${t('drift.inApp')}</p>
     </div>`;
 }
 

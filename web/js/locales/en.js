@@ -77,6 +77,43 @@ export default {
     'Pull the LT and RT triggers all the way down, then rotate both the left and the right stick a full circle three times. Then press the A button.',
   'drift.note':
     'While calibration runs the pad must not be shaken and the sticks must stay untouched — the centre is sampled at rest.',
+  'drift.inApp': 'The same can be done right here: “Controller calibration” → “Sticks”.',
+
+  'cal.title': 'Controller calibration',
+  'cal.intro':
+    'The gyro, sticks and triggers are calibrated inside the pad: the command goes over the vendor channel, the result is stored in firmware and survives a reconnect. The calibration cannot be read back — the only way back is calibrating again.',
+  'cal.sticks': 'Sticks',
+  'cal.triggers': 'Triggers',
+  'cal.motion': 'Gyro',
+  'cal.save': 'Save',
+  'cal.cancel': 'Cancel',
+  'cal.needDevice': 'connect the pad over WebHID first',
+  'cal.started': '“{part}” calibration started',
+  'cal.saved': 'calibration stored in the pad',
+  'cal.savedMotion': 'gyro calibration stored',
+  'cal.aborted': 'calibration cancelled, nothing was stored',
+  'cal.ready': 'ready to save',
+  'cal.waiting': 'follow the steps above',
+  'cal.checkStick': '{side}: {covered} of {total} directions covered',
+  'cal.checkTrigger': '{side}: {passes} of {total} full presses',
+  'cal.checkMotion': 'pad resting still: {seconds} s left',
+  'cal.centering': 'centering: leave the sticks alone',
+  'cal.stepSticksOne': 'Put the pad on a table and leave sticks and triggers alone while it centres.',
+  'cal.stepSticksTwo':
+    'Roll both sticks along the edge through a full circle until all four directions are covered. Do not press the triggers meanwhile.',
+  'cal.stepTriggersOne': 'Leave the sticks alone: the triggers are calibrated separately.',
+  'cal.stepTriggersTwo': 'Gently press LT and RT all the way down and release, three times.',
+  'cal.stepMotionOne': 'Place the pad flat on a level surface and do not move it.',
+  'cal.stepMotionTwo': 'Wait for the countdown to end — it saves itself.',
+  'cal.centerTitle': 'Stick centre offset',
+  'cal.centerHint':
+    'A fine correction without recalibrating: every click shifts the stored centre by 32 counts. The opposite button undoes it.',
+  'cal.centerDone': '{side}: centre shifted {direction}',
+  'cal.centerNoAck': '{side}: the pad did not confirm the shift {direction}',
+  'cal.nudgeUp': 'up',
+  'cal.nudgeLeft': 'left',
+  'cal.nudgeRight': 'right',
+  'cal.nudgeDown': 'down',
 
   'profile.title': 'Profile and settings',
   'profile.hint':

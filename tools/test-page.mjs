@@ -52,6 +52,18 @@ check('copy-all button is present', htmlIds.has('udev-copy-all'));
 check('diagnostics button is present', htmlIds.has('diagnose'));
 check('stylesheet exists', existsSync(join(root, 'web/style.css')));
 
+// calibration section: the buttons that start a run, the panel it fills in, and
+// the manual centre nudge must all be present in the markup.
+check('calibration section is present', htmlIds.has('calibration'));
+for (const id of ['cal-sticks', 'cal-triggers', 'cal-motion', 'cal-panel', 'cal-save', 'cal-cancel']) {
+  check(`calibration element ${id} is present`, htmlIds.has(id));
+}
+const nudgeButtons = [...html.matchAll(/data-nudge-side="(\w+)"/g)].map((m) => m[1]);
+check('stick centre nudge has four buttons per stick',
+  nudgeButtons.filter((s) => s === 'ls').length === 4 && nudgeButtons.filter((s) => s === 'rs').length === 4,
+  nudgeButtons.join(','));
+check('calibration module is imported by the UI', readFileSync(join(root, 'web/js/main.js'), 'utf8').includes("from './calibration.js'"));
+
 // templates must be balanced - a missing </div> silently breaks the layout
 const TAGS = ['div', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'span', 'select', 'button'];
 for (const file of scripts) {

@@ -41,6 +41,19 @@ import {
   writePageDiff,
 } from './protocol.js';
 import { actionCount, actionLabel, actionOptions, loadActions } from './actions.js';
+import {
+  CALIBRATION_PARTS,
+  NUDGE_COUNTS,
+  STICK_SIDES,
+  TRIGGER_PASSES,
+  TRIGGER_SIDES,
+  calibrationAbortArgs,
+  calibrationFinishArgs,
+  calibrationStartArgs,
+  createCoverage,
+  stickCenterArgs,
+} from './calibration.js';
+import { pickGamepad, readInputs } from './gamepad.js';
 import { I18nError, LANGS, applyStatic, currentLang, onLangChange, setLang, t } from './i18n.js';
 import { startLiveView } from './live.js';
 import { buildUdevScript } from './udev.js';
@@ -745,6 +758,226 @@ function showPermissions() {
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// --- calibration ---------------------------------------------------------
+// The pad samples sticks/triggers/gyro itself (vendor command 0xFE) and never
+// answers it. The vendor app only runs a timer; we watch the axes the pad reports
+// anyway, so the user sees when the travel is actually covered.
+const CAL_MOTION_MS = 3000;
+const CAL_CENTER_MS = 800;
+const CAL_POLL_MS = 50;
+
+const CAL_TITLES = { sticks: 'cal.sticks', triggers: 'cal.triggers', motion: 'cal.motion' };
+const CAL_STEPS = {
+  sticks: ['cal.stepSticksOne', 'cal.stepSticksTwo'],
+  triggers: ['cal.stepTriggersOne', 'cal.stepTriggersTwo'],
+  motion: ['cal.stepMotionOne', 'cal.stepMotionTwo'],
+};
+const CAL_DIRECTION_KEYS = {
+  up: 'cal.nudgeUp',
+  left: 'cal.nudgeLeft',
+  right: 'cal.nudgeRight',
+  down: 'cal.nudgeDown',
+};
+
+const calPanel = document.getElementById('cal-panel');
+const calTitleEl = document.getElementById('cal-title');
+const calStepsEl = document.getElementById('cal-steps');
+const calChecksEl = document.getElementById('cal-checks');
+const calSaveBtn = document.getElementById('cal-save');
+const calCancelBtn = document.getElementById('cal-cancel');
+const calStatusEl = document.getElementById('cal-status');
+
+let calSession = null; // { part, coverage, startedAt, motionLeft, saving }
+let calPoll = 0;
+
+function stopCalPoll() {
+  if (calPoll) clearInterval(calPoll);
+  calPoll = 0;
+}
+
+function calReady(session) {
+  if (!session) return false;
+  if (performance.now() < session.centerUntil) return false;
+  if (session.part === 'sticks') return session.coverage.sticksPassed();
+  if (session.part === 'triggers') return session.coverage.triggersPassed();
+  return session.motionLeft <= 0;
+}
+
+function renderCalPanel() {
+  const session = calSession;
+  if (!calPanel) return;
+  if (!session) {
+    calPanel.hidden = true;
+    return;
+  }
+  calPanel.hidden = false;
+  calTitleEl.textContent = t(CAL_TITLES[session.part]);
+  calStepsEl.innerHTML = CAL_STEPS[session.part].map((key) => `<li>${t(key)}</li>`).join('');
+
+  const centering = performance.now() < session.centerUntil;
+  if (centering) {
+    calChecksEl.innerHTML = `<span class="check">${t('cal.centering')}</span>`;
+    calSaveBtn.disabled = true;
+    calStatusEl.textContent = t('cal.waiting');
+    calStatusEl.className = 'hint';
+    return;
+  }
+
+  if (session.part === 'sticks') {
+    calChecksEl.innerHTML = STICK_SIDES.map((side) => {
+      const covered = session.coverage.stickCoverage(side);
+      const ok = session.coverage.stickPassed(side);
+      return `<span class="check${ok ? ' ok' : ''}">${t('cal.checkStick', {
+        side: side.toUpperCase(),
+        covered,
+        total: 4,
+      })}</span>`;
+    }).join('');
+  } else if (session.part === 'triggers') {
+    calChecksEl.innerHTML = TRIGGER_SIDES.map((side) => {
+      const passes = Math.min(TRIGGER_PASSES, session.coverage.triggerPasses(side));
+      const ok = session.coverage.triggerPassed(side);
+      return `<span class="check${ok ? ' ok' : ''}">${t('cal.checkTrigger', {
+        side: side.toUpperCase(),
+        passes,
+        total: TRIGGER_PASSES,
+      })}</span>`;
+    }).join('');
+  } else {
+    const left = Math.ceil(Math.max(0, session.motionLeft) / 1000);
+    calChecksEl.innerHTML = `<span class="check${session.motionLeft <= 0 ? ' ok' : ''}">${t('cal.checkMotion', {
+      seconds: left,
+    })}</span>`;
+  }
+
+  calSaveBtn.disabled = !calReady(session) || session.saving;
+  calStatusEl.textContent = calReady(session) ? t('cal.ready') : t('cal.waiting');
+  calStatusEl.className = `hint${calReady(session) ? ' ok' : ''}`;
+}
+
+function calTick() {
+  const session = calSession;
+  if (!session) return;
+  const picked = pickGamepad(navigator.getGamepads?.() ?? []);
+  // The pad samples the resting centre right after `start`; movement during that
+  // phase must not count towards the coverage.
+  if (picked && performance.now() >= session.centerUntil) {
+    session.coverage.update(readInputs(picked.pad));
+  }
+  if (session.part === 'motion') {
+    session.motionLeft = Math.max(0, CAL_MOTION_MS - (performance.now() - session.startedAt));
+    if (session.motionLeft <= 0 && !session.saving) finishCalibration(true).catch((err) => showError(err));
+  }
+  renderCalPanel();
+}
+
+function startCalPoll() {
+  stopCalPoll();
+  calPoll = setInterval(calTick, CAL_POLL_MS);
+}
+
+async function startCalibration(part) {
+  if (!hid || !hid.opened) {
+    statusKey('cal.needDevice', {}, 'warn');
+    return;
+  }
+  if (calSession) await abortCalibration(true);
+  const startedAt = performance.now();
+  calSession = {
+    part,
+    coverage: createCoverage(),
+    startedAt,
+    centerUntil: startedAt + (part === 'motion' ? 0 : CAL_CENTER_MS),
+    motionLeft: CAL_MOTION_MS,
+    saving: false,
+  };
+  renderCalPanel();
+  try {
+    await hid.calibrate(calibrationStartArgs(part));
+    log(`calibration started: ${part}, part bits 0b${CALIBRATION_PARTS[part].toString(2)}`);
+    statusKey('cal.started', { part: t(CAL_TITLES[part]) }, 'ok');
+    startCalPoll();
+  } catch (err) {
+    calSession = null;
+    stopCalPoll();
+    renderCalPanel();
+    showError(err);
+  }
+}
+
+async function finishCalibration(auto = false) {
+  const session = calSession;
+  if (!session || session.saving) return;
+  session.saving = true;
+  renderCalPanel();
+  try {
+    await hid.calibrate(calibrationFinishArgs());
+    log(`calibration saved: ${session.part}${auto ? ' (motion, timer)' : ''}`);
+    statusKey(auto ? 'cal.savedMotion' : 'cal.saved', {}, 'ok');
+    calSession = null;
+    stopCalPoll();
+    renderCalPanel();
+  } catch (err) {
+    session.saving = false;
+    renderCalPanel();
+    showError(err);
+  }
+}
+
+async function abortCalibration(silent = false) {
+  const session = calSession;
+  if (!session) return;
+  calSession = null;
+  stopCalPoll();
+  renderCalPanel();
+  try {
+    await hid.calibrate(calibrationAbortArgs());
+    log(`calibration aborted: ${session.part}`);
+    if (!silent) statusKey('cal.aborted', {}, 'warn');
+  } catch (err) {
+    if (!silent) showError(err);
+  }
+}
+
+async function nudgeCenter(side, direction) {
+  if (!hid || !hid.opened) {
+    statusKey('cal.needDevice', {}, 'warn');
+    return;
+  }
+  try {
+    const frames = await hid.nudgeStickCenter(stickCenterArgs(side, direction, NUDGE_COUNTS));
+    const ack = frames.find((frame) => frame[0] === 0xe3);
+    const ok = Boolean(ack) && ack[1] === 0;
+    log(
+      `stick centre ${side} ${direction}: ${NUDGE_COUNTS} counts, ack ${ack ? `0x${ack[1].toString(16)}` : 'none'}`,
+    );
+    statusKey(
+      ok ? 'cal.centerDone' : 'cal.centerNoAck',
+      { side: side.toUpperCase(), direction: t(CAL_DIRECTION_KEYS[direction]) },
+      ok ? 'ok' : 'warn',
+    );
+  } catch (err) {
+    showError(err);
+  }
+}
+
+for (const [id, part] of [
+  ['cal-sticks', 'sticks'],
+  ['cal-triggers', 'triggers'],
+  ['cal-motion', 'motion'],
+]) {
+  document.getElementById(id)?.addEventListener('click', () => {
+    startCalibration(part).catch((err) => showError(err));
+  });
+}
+calSaveBtn?.addEventListener('click', () => finishCalibration().catch((err) => showError(err)));
+calCancelBtn?.addEventListener('click', () => abortCalibration().catch((err) => showError(err)));
+for (const button of document.querySelectorAll('[data-nudge-side]')) {
+  button.addEventListener('click', () => {
+    nudgeCenter(button.dataset.nudgeSide, button.dataset.nudgeDir).catch((err) => showError(err));
+  });
+}
+
 document.getElementById('connect').addEventListener('click', async () => {
   try {
     log('requesting WebHID access...');
@@ -855,6 +1088,7 @@ onLangChange(() => {
   renderUdev();
   updateButtons();
   renderEditor();
+  renderCalPanel();
   renderModeHint(padMode ? { mode: padMode } : null);
   if (statusState) statusEl.textContent = t(statusState.key, statusState.params);
 });

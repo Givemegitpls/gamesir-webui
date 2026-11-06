@@ -124,6 +124,51 @@
     <div id="button-test" class="presses"></div>
   </section>
 
+  <section class="card" id="calibration">
+    <h2 data-i18n="cal.title">Калибровка пада</h2>
+    <p class="hint" data-i18n-html="cal.intro">
+      Гироскоп, стики и курки калибруются в самом паде: команда уходит по вендорскому каналу,
+      результат сохраняется в прошивке и переживает переподключение. Прочитать калибровку обратно
+      нельзя — откат возможен только повторной калибровкой.
+    </p>
+    <div class="row">
+      <button id="cal-sticks" type="button" data-i18n="cal.sticks">Стики</button>
+      <button id="cal-triggers" type="button" data-i18n="cal.triggers">Курки</button>
+      <button id="cal-motion" type="button" data-i18n="cal.motion">Гироскоп</button>
+    </div>
+    <div id="cal-panel" class="cal-panel" hidden>
+      <h3 id="cal-title"></h3>
+      <ol id="cal-steps"></ol>
+      <div id="cal-checks" class="cal-checks"></div>
+      <div class="row">
+        <button id="cal-save" type="button" disabled data-i18n="cal.save">Сохранить</button>
+        <button id="cal-cancel" type="button" data-i18n="cal.cancel">Отмена</button>
+      </div>
+      <p id="cal-status" class="hint"></p>
+    </div>
+    <h3 data-i18n="cal.centerTitle">Сдвиг центра стика</h3>
+    <p class="hint" data-i18n-html="cal.centerHint">
+      Точечная поправка без перекалибровки: каждый клик сдвигает сохранённый центр на 32 отсчёта.
+      Кнопка в обратную сторону возвращает всё назад.
+    </p>
+    <div class="cal-nudges">
+      <div class="cal-nudge" data-nudge="ls">
+        <b>LS</b>
+        <button type="button" class="up" data-nudge-side="ls" data-nudge-dir="up" data-i18n-title="cal.nudgeUp" data-i18n-aria="cal.nudgeUp" title="сдвинуть центр вверх" aria-label="сдвинуть центр вверх">↑</button>
+        <button type="button" class="left" data-nudge-side="ls" data-nudge-dir="left" data-i18n-title="cal.nudgeLeft" data-i18n-aria="cal.nudgeLeft" title="сдвинуть центр влево" aria-label="сдвинуть центр влево">←</button>
+        <button type="button" class="right" data-nudge-side="ls" data-nudge-dir="right" data-i18n-title="cal.nudgeRight" data-i18n-aria="cal.nudgeRight" title="сдвинуть центр вправо" aria-label="сдвинуть центр вправо">→</button>
+        <button type="button" class="down" data-nudge-side="ls" data-nudge-dir="down" data-i18n-title="cal.nudgeDown" data-i18n-aria="cal.nudgeDown" title="сдвинуть центр вниз" aria-label="сдвинуть центр вниз">↓</button>
+      </div>
+      <div class="cal-nudge" data-nudge="rs">
+        <b>RS</b>
+        <button type="button" class="up" data-nudge-side="rs" data-nudge-dir="up" data-i18n-title="cal.nudgeUp" data-i18n-aria="cal.nudgeUp" title="сдвинуть центр вверх" aria-label="сдвинуть центр вверх">↑</button>
+        <button type="button" class="left" data-nudge-side="rs" data-nudge-dir="left" data-i18n-title="cal.nudgeLeft" data-i18n-aria="cal.nudgeLeft" title="сдвинуть центр влево" aria-label="сдвинуть центр влево">←</button>
+        <button type="button" class="right" data-nudge-side="rs" data-nudge-dir="right" data-i18n-title="cal.nudgeRight" data-i18n-aria="cal.nudgeRight" title="сдвинуть центр вправо" aria-label="сдвинуть центр вправо">→</button>
+        <button type="button" class="down" data-nudge-side="rs" data-nudge-dir="down" data-i18n-title="cal.nudgeDown" data-i18n-aria="cal.nudgeDown" title="сдвинуть центр вниз" aria-label="сдвинуть центр вниз">↓</button>
+      </div>
+    </div>
+  </section>
+
   <section class="card">
     <h2 data-i18n="profile.title">Профиль и настройки</h2>
     <p class="hint" data-i18n="profile.hint">
