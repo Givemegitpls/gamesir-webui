@@ -239,6 +239,7 @@ def main(argv: list[str]) -> int:
         return 2
     op, *rest = argv[1:]
     if op == "dump":
+        rest = [item for item in rest if item != "--out"]
         outdir = Path(rest[0]) if rest else Path("/tmp/opencode/c2-backup")
         return cmd_dump(outdir, [1, 2, 3, 4, SHIFT_PAGE, LIGHT_PAGE])
     if op == "read":

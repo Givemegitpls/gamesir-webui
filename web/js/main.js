@@ -3,7 +3,6 @@
 import { GameSirHid } from './hid.js';
 import {
   CLICKY_TRIGGER,
-  ZONE_KEYS,
   FIELD_LABEL_KEYS,
   FUN_FIELDS,
   LIGHT_PAGE,
@@ -26,6 +25,7 @@ import {
   pageLength,
   readCurrentProfile,
   hexToRgb,
+  rgbToHex,
   readFirmware,
   readLayout,
   readLight,
@@ -33,7 +33,6 @@ import {
   readMapping,
   readPage,
   switchProfile,
-  rgbToHex,
   writeLayout,
   writeLight,
   writeMacro,
@@ -55,12 +54,17 @@ import {
 } from './calibration.js';
 import { pickGamepad, readInputs } from './gamepad.js';
 import { I18nError, LANGS, applyStatic, currentLang, onLangChange, setLang, t } from './i18n.js';
+import { lightEditorHtml } from './light-ui.js';
 import { startLiveView } from './live.js';
 import { buildUdevScript } from './udev.js';
 
 const logEl = document.getElementById('log');
 const statusEl = document.getElementById('status');
 const editorEl = document.getElementById('editor');
+const lightEditorEl = document.getElementById('light-editor');
+const lightApplyBtn = document.getElementById('light-apply');
+const lightRevertBtn = document.getElementById('light-revert');
+const lightStatusEl = document.getElementById('light-status');
 const applyBtn = document.getElementById('apply');
 const revertBtn = document.getElementById('revert');
 const readBtn = document.getElementById('read');
@@ -71,9 +75,12 @@ let original = null; // page bytes as read from the device
 let desired = null; // working copy
 let activeProfileIndex = null;
 let loadedPage = null; // which page the editor buffer belongs to
+let lightTab = 0; // which animation the lighting editor shows (UI only)
+let lightOriginal = null; // page 32 as read from the pad (independent of profiles)
+let lightDesired = null; // lighting working copy
 const sessionSnapshot = new Map(); // page -> bytes as they were when we connected
 
-const SNAPSHOT_PAGES = [...PROFILE_PAGES, SHIFT_PAGE, LIGHT_PAGE];
+const SNAPSHOT_PAGES = [...PROFILE_PAGES, SHIFT_PAGE];
 
 const log = (msg) => {
   logEl.textContent += `${msg}\n`;
@@ -106,11 +113,6 @@ function hex(bytes) {
 function renderEditor() {
   if (!desired) {
     editorEl.innerHTML = `<p class="hint">${t('editor.empty')}</p>`;
-    return;
-  }
-
-  if (Number(pageSel.value) === LIGHT_PAGE) {
-    renderLightEditor();
     return;
   }
 
@@ -325,68 +327,6 @@ function renderEditor() {
 
 // --- lighting editor (page 32) ----------------------------------------------
 
-function lightEditorHtml() {
-  const light = readLight(desired);
-  const active = light.configIndex;
-  const animation = light.animations[active];
-
-  const animationRows = light.animations
-    .map(
-      (item, index) => `<tr>
-        <td>${index + 1}${index === active ? ' ←' : ''}</td>
-        <td><input type="number" min="0" max="8" data-light-anim="${index}" data-light-field="keyFrameCount" value="${item.keyFrameCount}"></td>
-        <td><input type="number" min="0" max="255" data-light-anim="${index}" data-light-field="effectCount" value="${item.effectCount}"></td>
-        <td><input type="number" min="0" max="20" data-light-anim="${index}" data-light-field="speed" value="${item.speed}"></td>
-        <td><input type="number" min="0" max="100" data-light-anim="${index}" data-light-field="brightness" value="${item.brightness}"></td>
-      </tr>`,
-    )
-    .join('');
-
-  const frameRows = animation.frames
-    .map(
-      (zones, frame) => `<tr>
-        <td>${frame + 1}</td>
-        ${zones
-          .map(
-            (zone, zoneIndex) =>
-              `<td><input type="color" value="${rgbToHex(zone)}" data-light-frame="${frame}" data-light-zone="${zoneIndex}"></td>`,
-          )
-          .join('')}
-      </tr>`,
-    )
-    .join('');
-
-  return `
-    <div class="block wide">
-      <h3>${t('light.title')} <small>${t('light.pageNote')}</small></h3>
-      <div class="fields">
-        <label>${t('light.activeAnimation')}
-          <select data-light="configIndex">
-            ${light.animations
-              .map((_, index) => `<option value="${index}" ${index === active ? 'selected' : ''}>${index + 1}</option>`)
-              .join('')}
-          </select>
-        </label>
-        <label>${t('light.audioReactive')} <input type="checkbox" data-light="audioReactive" ${light.audioReactive ? 'checked' : ''}></label>
-        <label>${t('light.effectIndex')} <input type="number" min="0" max="255" data-light="userEffectIndex" value="${light.userEffectIndex}"></label>
-        <label>${t('light.profileLed')} <input type="color" data-light="profileLed" value="${rgbToHex(light.profileLed)}"></label>
-        <label>${t('light.raiseWakeUp')} <input type="checkbox" data-light="raiseWakeUp" ${light.raiseWakeUp ? 'checked' : ''}></label>
-        <label>${t('light.standbyTime')} <input type="number" min="0" max="255" data-light="standbyTime" value="${light.standbyTime}"></label>
-        <span class="hint">${t('light.reserved', { bytes: light.reserved.map((b) => b.toString(16).padStart(2, '0')).join(' ') })}</span>
-      </div>
-      <h3>${t('light.animations')} <small>${t('light.speedNote')}</small></h3>
-      <table class="steps">
-        <thead><tr><th>#</th><th>${t('light.colFrames')}</th><th>${t('light.colEffects')}</th><th>${t('light.colSpeed')}</th><th>${t('light.colBrightness')}</th></tr></thead>
-        <tbody>${animationRows}</tbody>
-      </table>
-      <h3>${t('light.framesOf', { index: active + 1 })} <small>${ZONE_KEYS.map((key) => t(key)).join(' · ')}</small></h3>
-      <table class="steps lights">
-        <tbody>${frameRows}</tbody>
-      </table>
-      <p class="hint">${t('light.hint')}</p>
-    </div>`;
-}
-
 function applyLightField(input) {
   updateLight((light) => {
     const field = input.dataset.light;
@@ -395,7 +335,10 @@ function applyLightField(input) {
     else if (field === 'configIndex') light.configIndex = Number(input.value);
     else light[field] = Number(input.value);
   });
-  if (input.dataset.light === 'configIndex') renderEditor();
+  if (input.dataset.light === 'configIndex') {
+    lightTab = Number(input.value);
+    renderLightEditor();
+  }
 }
 
 function applyLightAnimationField(input) {
@@ -404,35 +347,156 @@ function applyLightAnimationField(input) {
   updateLight((light) => {
     light.animations[index][field] = Number(input.value);
   });
+  const output = input.nextElementSibling;
+  if (output && output.tagName === 'OUTPUT') output.textContent = input.value;
+  // The frame count decides which rows are dimmed, so the table has to redraw.
+  if (field === 'keyFrameCount') renderLightEditor();
 }
 
 function applyLightFrameField(input) {
   const frame = Number(input.dataset.lightFrame);
   const zone = Number(input.dataset.lightZone);
+  const rgb = hexToRgb(input.value);
   updateLight((light) => {
-    light.animations[light.configIndex].frames[frame][zone] = hexToRgb(input.value);
+    light.animations[light.configIndex].frames[frame][zone] = rgb;
   });
+  // The text twin stays in sync, so a colour can be copied or pasted as one string.
+  const hexInput = input.parentElement?.querySelector('[data-light-hex]');
+  if (hexInput) hexInput.value = rgbToHex(rgb);
+}
+
+function applyLightHexField(input) {
+  const value = input.value.trim();
+  // Only commit complete values: half-typed text must not repaint the frame.
+  if (!/^#?[0-9a-f]{6}$/i.test(value)) return;
+  const frame = Number(input.dataset.lightHex);
+  const zone = Number(input.dataset.lightHexZone);
+  const rgb = hexToRgb(value);
+  updateLight((light) => {
+    light.animations[light.configIndex].frames[frame][zone] = rgb;
+  });
+  const colorInput = input.parentElement?.querySelector('input[type="color"]');
+  if (colorInput) colorInput.value = rgbToHex(rgb);
+  input.value = rgbToHex(rgb);
 }
 
 function updateLight(mutate) {
-  const light = readLight(desired);
+  if (!lightDesired) return;
+  const light = readLight(lightDesired);
   mutate(light);
-  writeLight(desired, light);
-  updateButtons();
+  writeLight(lightDesired, light);
+  updateLightButtons();
 }
 
 function renderLightEditor() {
-  editorEl.innerHTML = lightEditorHtml();
-  editorEl.querySelectorAll('[data-light]').forEach((input) => {
+  if (!lightDesired) {
+    lightEditorEl.innerHTML = `<p class="hint">${t('light.notLoaded')}</p>`;
+    return;
+  }
+  lightEditorEl.innerHTML = lightEditorHtml(lightDesired, lightTab);
+  lightEditorEl.querySelectorAll('[data-light]').forEach((input) => {
     input.addEventListener('input', () => applyLightField(input));
     input.addEventListener('change', () => applyLightField(input));
   });
-  editorEl.querySelectorAll('[data-light-anim]').forEach((input) => {
+  lightEditorEl.querySelectorAll('[data-light-anim]').forEach((input) => {
     input.addEventListener('input', () => applyLightAnimationField(input));
   });
-  editorEl.querySelectorAll('[data-light-frame]').forEach((input) => {
+  lightEditorEl.querySelectorAll('[data-light-frame]').forEach((input) => {
     input.addEventListener('input', () => applyLightFrameField(input));
   });
+  lightEditorEl.querySelectorAll('[data-light-hex]').forEach((input) => {
+    input.addEventListener('input', () => applyLightHexField(input));
+    input.addEventListener('change', () => {
+      if (!/^#?[0-9a-f]{6}$/i.test(input.value.trim())) {
+        // Leave a clear marker instead of silently keeping broken text.
+        input.classList.add('invalid');
+      } else {
+        input.classList.remove('invalid');
+      }
+    });
+  });
+  lightEditorEl.querySelectorAll('[data-light-tab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      lightTab = Number(button.dataset.lightTab);
+      renderLightEditor();
+    });
+  });
+}
+
+async function loadLight() {
+  if (!hid || !hid.opened) {
+    statusKey('status.notConnected', {}, 'warn');
+    lightEditorEl.innerHTML = `<p class="hint">${t('light.needsConnection')}</p>`;
+    return;
+  }
+  try {
+    lightEditorEl.innerHTML = `<p class="hint">${t('light.reading')}</p>`;
+    const bytes = await withConfig(() => readPage(hid, LIGHT_PAGE));
+    lightOriginal = bytes;
+    lightDesired = bytes.slice();
+    renderLightEditor();
+    updateLightButtons();
+    statusKey('light.readDone', {}, 'ok');
+    log(`read light page: ${bytes.length} bytes`);
+  } catch (err) {
+    showError(err);
+  }
+}
+
+async function applyLightChanges() {
+  if (!hid || !hid.opened) {
+    statusKey('status.notConnected', {}, 'warn');
+    return;
+  }
+  if (!lightOriginal || !lightDesired) {
+    statusKey('light.notLoaded', {}, 'warn');
+    return;
+  }
+  try {
+    const result = await withConfig(async () => {
+      const sent = await writePageDiff(hid, LIGHT_PAGE, lightOriginal, lightDesired, log);
+      const back = await readPage(hid, LIGHT_PAGE);
+      return { sent, back };
+    });
+    const diff = byteDiff(lightDesired, result.back);
+    if (diff.length) {
+      log(`light: after the write these bytes differ: ${diff.map((i) => `0x${i.toString(16)}`).join(', ')}`);
+      statusKey('light.notConfirmed', {}, 'warn');
+      return;
+    }
+    lightOriginal = result.back;
+    lightDesired = result.back.slice();
+    renderLightEditor();
+    updateLightButtons();
+    statusKey('light.applied', { packets: result.sent }, 'ok');
+  } catch (err) {
+    showError(err);
+  }
+}
+
+function revertLight() {
+  if (!lightOriginal) return;
+  lightDesired = lightOriginal.slice();
+  renderLightEditor();
+  updateLightButtons();
+}
+
+function updateLightButtons() {
+  const pending = lightOriginal && lightDesired ? byteDiff(lightOriginal, lightDesired).length : 0;
+  if (lightApplyBtn) {
+    lightApplyBtn.disabled = !pending || !hid;
+    lightApplyBtn.textContent = pending ? t('profile.applyCount', { count: pending }) : t('light.save');
+    lightApplyBtn.classList.toggle('pending', pending > 0);
+  }
+  if (lightRevertBtn) lightRevertBtn.disabled = !pending;
+  if (lightStatusEl) {
+    lightStatusEl.textContent = pending
+      ? t('light.unsaved', { count: pending })
+      : lightOriginal
+        ? t('light.noChanges')
+        : '';
+    lightStatusEl.className = `hint${pending ? ' warn' : ''}`;
+  }
 }
 
 // Mapping records keep map_en implicit: any target turns mapping on.
@@ -491,10 +555,11 @@ function updateButtons() {
     return;
   }
   const diff = byteDiff(original, desired);
+  const pending = diff.length > 0;
   applyBtn.disabled = diff.length === 0 || !hid;
   revertBtn.disabled = diff.length === 0;
   applyBtn.textContent = diff.length ? t('profile.applyCount', { count: diff.length }) : t('profile.apply');
-  applyBtn.classList.toggle('pending', diff.length > 0);
+  applyBtn.classList.toggle('pending', pending);
   for (const id of ['activate-profile', 'copy-profile', 'restore-session']) {
     const button = document.getElementById(id);
     if (button) button.disabled = !hid || !desired;
@@ -1037,16 +1102,32 @@ readBtn.addEventListener('click', () => loadCurrent().catch((err) => showError(e
 
 // Profiles are read automatically when the selection changes, so switching slots
 // never shows stale values (requires an open connection).
-pageSel.addEventListener('change', () => {
-  if (!hid || !hid.opened) return;
+function loadSelectedPage() {
+  if (!hid || !hid.opened) {
+    // Nothing can be read without the vendor channel: say so instead of doing nothing.
+    statusKey('status.notConnected', {}, 'warn');
+    editorEl.innerHTML = `<p class="hint">${t('editor.empty')}</p>`;
+    return;
+  }
   loadCurrent().catch((err) => statusKey('status.readFailed', { message: err.message }, 'warn'));
+}
+
+pageSel.addEventListener('change', loadSelectedPage);
+// The lighting editor hides behind the page selector, which people keep missing.
+document.getElementById('light-open')?.addEventListener('click', () => {
+  loadLight().catch((err) => showError(err));
 });
+lightApplyBtn?.addEventListener('click', () => applyLightChanges().catch((err) => showError(err)));
+lightRevertBtn?.addEventListener('click', revertLight);
+lightEditorEl.innerHTML = `<p class="hint">${t('light.needsConnection')}</p>`;
 applyBtn.addEventListener('click', () => applyChanges().catch((err) => showError(err)));
-revertBtn.addEventListener('click', () => {
+revertBtn.addEventListener('click', revertChanges);
+function revertChanges() {
+  if (!original) return;
   desired = original.slice();
   renderEditor();
   updateButtons();
-});
+}
 document.getElementById('backup').addEventListener('click', () => backupAll().catch((err) => showError(err)));
 document.getElementById('restore').addEventListener('change', (event) => {
   const file = event.target.files[0];
@@ -1088,6 +1169,8 @@ onLangChange(() => {
   renderUdev();
   updateButtons();
   renderEditor();
+  renderLightEditor();
+  updateLightButtons();
   renderCalPanel();
   renderModeHint(padMode ? { mode: padMode } : null);
   if (statusState) statusEl.textContent = t(statusState.key, statusState.params);

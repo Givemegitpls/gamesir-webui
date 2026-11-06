@@ -140,7 +140,21 @@ export const LIGHT_TAIL_OFFSET = 1 + ANIMATION_COUNT * ANIMATION_LEN;
 export const MAX_SPEED = 20;
 export const MAX_BRIGHTNESS = 100;
 
-export const ZONE_KEYS = ['zone.home', 'zone.lowerLeft', 'zone.lowerRight', 'zone.upperLeft', 'zone.upperRight'];
+// Slot order is the vendor one, but the physical mapping is not the one the vendor
+// model suggests. Verified on the user's Cyclone 2 (07.11): slot 0 lights the left
+// grip, 1 the right grip, 2 changes nothing, 3 the Home ring, 4 the layout LED in
+// the centre of the shell.
+export const ZONE_KEYS = [
+  'zone.leftGrip',
+  'zone.rightGrip',
+  'zone.unused',
+  'zone.homeRing',
+  'zone.layoutLed',
+];
+
+// Slot 2 drives nothing on this model, so the editor hides it instead of offering
+// a control that has no visible effect. Write order still covers all five.
+export const EDITABLE_ZONE_INDEXES = [0, 1, 3, 4];
 
 export function animationOffset(index) {
   return 1 + index * ANIMATION_LEN;

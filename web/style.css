@@ -337,3 +337,39 @@ pre.cmd .copy {
 .cal-nudge .left { grid-area: left; }
 .cal-nudge .right { grid-area: right; }
 .cal-nudge .down { grid-area: down; }
+
+/* lighting editor: animation tabs, colour previews, dimmed unused frames */
+.light-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+.light-tab {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #10141c;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 116px;
+}
+.light-tab .tab-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.light-tab .tab-head small { color: var(--dim); font-size: 10px; }
+.light-tab.current { border-color: var(--accent); }
+.light-tab.active { background: #1a2634; }
+.light-tab.active .tab-head small { color: var(--accent); }
+.tab-strip, .swatch-strip { display: flex; gap: 2px; }
+.swatch { display: block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0006; }
+.steps.lights td.preview { padding-left: 8px; }
+.steps.lights tr.dim { opacity: 0.4; }
+.steps.lights input[type="color"] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
+input[type="range"] { width: 120px; vertical-align: middle; }
+
+/* one colour = picker + hex text so a value can be pasted as a single string */
+.steps.lights .colour { display: inline-flex; gap: 6px; align-items: center; }
+.steps.lights input.hex {
+  width: 82px;
+  background: #10141c;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+}
+.steps.lights input.hex.invalid { border-color: var(--warn); color: var(--warn); }

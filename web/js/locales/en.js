@@ -178,6 +178,19 @@ export default {
     'The profile reserves {max} steps per macro; the official app for this model limits the editor to 12. Hold and delay are milliseconds stored in a 16-bit field.',
 
   'light.title': 'Lighting',
+  'light.open': 'Read lighting',
+  'light.save': 'Apply',
+  'light.reading': 'reading page 32 from the pad…',
+  'light.readDone': 'lighting page read',
+  'light.applied': 'lighting written and read back ({packets} packets)',
+  'light.notConfirmed': 'the lighting write was not confirmed',
+  'light.intro':
+    'A page of its own (32, 635 bytes): five animations, eight frames of five RGB slots (two grip lights, a spare slot, the Home ring, the layout LED), plus speed, brightness, audio-reactive, profile colour, wake on lift and the sleep timeout.',
+  'light.notLoaded': 'the lighting page has not been read yet: press “Read lighting”.',
+  'light.noChanges': 'no changes',
+  'light.unsaved': 'unsaved bytes: {count}',
+  'light.needsConnection':
+    'lighting lives on page 32: connect the pad with “Connect (WebHID)”, then press “Read lighting”',
   'light.pageNote': 'page 32, 635 bytes',
   'light.activeAnimation': 'active animation',
   'light.audioReactive': 'audio-reactive',
@@ -187,6 +200,10 @@ export default {
   'light.standbyTime': 'sleep timeout',
   'light.reserved': 'reserved: {bytes}',
   'light.animations': 'Animations',
+  'light.preview': 'Preview',
+  'light.hexHint': 'hex colour, e.g. #ff8800',
+  'light.tabHint': 'animation tabs, the active one is marked',
+  'light.activeMark': 'active',
   'light.speedNote': 'speed is stored inverted (20 − value)',
   'light.colFrames': 'frames',
   'light.colEffects': 'effects',
@@ -194,7 +211,7 @@ export default {
   'light.colBrightness': 'brightness',
   'light.framesOf': 'Frames of animation {index}',
   'light.hint':
-    'Each frame is the colour of five zones: Home and the four lights under the ABXY buttons. The zone order depends on the layout, so "lower left" and so on follow their position on the shell.',
+    'Frame slots: left grip light, right grip light, the Home ring and the layout LED in the centre of the shell. The fifth slot of the vendor model lights nothing on this board and is hidden. The mapping is verified on the pad.',
 
   'group.general': 'General',
   'group.sticks': 'Sticks',
@@ -228,11 +245,11 @@ export default {
   'rate.500': '500 Hz',
   'rate.1000': '1000 Hz',
 
-  'zone.home': 'Home',
-  'zone.lowerLeft': 'lower left',
-  'zone.lowerRight': 'lower right',
-  'zone.upperLeft': 'upper left',
-  'zone.upperRight': 'upper right',
+  'zone.leftGrip': 'left grip (lower)',
+  'zone.rightGrip': 'right grip (lower)',
+  'zone.unused': 'unused',
+  'zone.homeRing': 'Home ring',
+  'zone.layoutLed': 'layout LED (centre)',
 
   'pad.dpadUp': 'D-pad ↑',
   'pad.dpadDown': 'D-pad ↓',

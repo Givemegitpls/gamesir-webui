@@ -52,6 +52,10 @@ def main(argv: list[str]) -> int:
 
     c2 = load_device_module()
 
+    def page_len(page: int) -> int:
+        # The lighting page is shorter than a profile page (635 vs 680 bytes).
+        return c2.LIGHT_LEN if page == c2.LIGHT_PAGE else c2.PROFILE_LEN
+
     if args.json:
         payload = json.loads(args.json.read_text())
         targets = {int(page): bytes(values) for page, values in payload["pages"].items()}
@@ -75,7 +79,7 @@ def main(argv: list[str]) -> int:
             target = targets.get(page)
             if target is None:
                 continue
-            before = c2.read_page(dev, page)
+            before = c2.read_page(dev, page, page_len(page))
             if len(target) != len(before):
                 print(f"страница {page}: размер {len(target)} != {len(before)} — пропуск")
                 continue
@@ -93,7 +97,7 @@ def main(argv: list[str]) -> int:
             for start, end in ranges:
                 c2.write_range(dev, page, start, target[start:end])
                 time.sleep(0.1)
-            after = c2.read_page(dev, page)
+            after = c2.read_page(dev, page, page_len(page))
             mismatch = [i for i in range(len(target)) if target[i] != after[i]]
             if mismatch:
                 print(f"  ВНИМАНИЕ: после записи отличаются байты {[hex(i) for i in mismatch[:8]]}")
