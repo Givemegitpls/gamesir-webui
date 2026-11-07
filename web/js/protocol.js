@@ -77,46 +77,67 @@ export const FUN_FIELDS = [
   { id: 'shiftValue', labelKey: 'fun.shiftValue', offset: 0x2a, type: 'range', min: 0, max: 9 },
 ];
 
-// ABXY layout is expressed by two independent markers, both inside the profile:
-//   * the flag `xinput_abxy_change` (0x2c) - set means "swapped in XInput mode",
-//     which is what the pad's own M + A combo writes (observed: a profile with no
-//     remaps at all still behaves as switch once 0x2c is set);
-//   * the four remaps A->B, B->A, X->Y, Y->X (0x40 region) - also produce switch
-//     on their own (observed on a profile whose flags were 0/0).
-// So switch is "flag OR remaps"; we write and clear both together, and 0x2d is
-// kept in step with 0x2c for the Switch-mode counterpart. Pages beyond 1-5/32 are
-// all zero on the hardware, so there is no device-level copy of this state.
+// ABXY layout is stored per mode inside the profile (verified on hardware 07.11):
+//   * `xinput_abxy_change` (0x2c) - swapped layout while the pad is in XInput mode;
+//   * `switch_abxy_change` (0x2d) - swapped layout in Switch (NS) mode.
+// The flags are independent: with 0x2c=0 / 0x2d=1 the pad is xbox on a PC and
+// nintendo on a Switch, from the *same* profile slot. Flipping 0x2d switched the
+// NS mapping back, so the pad really picks the flag by its current mode.
+// The four remaps A->B, B->A, X->Y, Y->X (0x40 region) are NOT mode-specific:
+// they force the swap in every mode and override both flags. The pad's own M + A
+// combo writes them, which is why profiles like our slot 4 needed a dedicated
+// "nintendo" slot. Pages beyond 1-5/32 are all zero on the hardware, so there is
+// no other copy of this state.
 export const ABXY_FLAGS = { xinput: 0x2c, switch: 0x2d };
+export const ABXY_MODES = ['xinput', 'switch'];
 
 export function describeAbxyFlags(page) {
   return `0x${ABXY_FLAGS.xinput.toString(16)}=${page[ABXY_FLAGS.xinput]}, 0x${ABXY_FLAGS.switch.toString(16)}=${page[ABXY_FLAGS.switch]}`;
 }
 
 // A(9) B(10) X(11) Y(12) live at mapping indices 8..11.
+// Hardware caveat (07.11): profile 4 stores A/B/X/Y inverted (A->10, B->9, X->12, Y->11)
+// as part of the firmware's own numbering, not as a user remap - the pad behaves normally
+// and the vendor UI accounts for the inversion. So `remapsSwapped` below is a false
+// positive on such a page; it must not be used to claim the layout is "switch".
 export const ABXY_SWAP_TARGETS = { 8: 10, 9: 9, 10: 12, 11: 11 };
 
 export function readLayout(page) {
-  const flag = page[ABXY_FLAGS.xinput] === 1;
+  const xinputSwitch = page[ABXY_FLAGS.xinput] === 1;
+  const switchSwitch = page[ABXY_FLAGS.switch] === 1;
   const remapsSwapped = Object.entries(ABXY_SWAP_TARGETS).every(
     ([index, target]) => readMapping(page, Number(index)).targets[0] === target,
   );
   return {
-    switchLayout: flag || remapsSwapped,
-    flag,
+    xinputSwitch,
+    switchSwitch,
     remapsSwapped,
-    switchFlag: page[ABXY_FLAGS.switch] === 1,
+    // effective layout in XInput mode, kept for callers that only need one answer
+    switchLayout: xinputSwitch || remapsSwapped,
   };
 }
 
-export function writeLayout(page, switchLayout) {
-  const value = switchLayout ? 1 : 0;
-  page[ABXY_FLAGS.xinput] = value;
-  page[ABXY_FLAGS.switch] = value;
+// Per-mode switch: writes a single flag and leaves the other mode untouched.
+export function writeLayoutMode(page, mode, switchLayout) {
+  const offset = ABXY_FLAGS[mode];
+  if (offset === undefined) throw new Error(`unknown layout mode: ${mode}`);
+  page[offset] = switchLayout ? 1 : 0;
+}
+
+// The global remaps, kept for the pad's own M + A layout and for importing codes
+// written by it. They override the per-mode flags, so the UI offers to clear them.
+export function setLayoutRemaps(page, switchLayout) {
   for (const [index, target] of Object.entries(ABXY_SWAP_TARGETS)) {
     const record = readMapping(page, Number(index));
     record.targets[0] = switchLayout ? target : 0;
     writeMapping(page, Number(index), record);
   }
+}
+
+// Legacy helper: switch in every mode (both flags + remaps).
+export function writeLayout(page, switchLayout) {
+  for (const mode of ABXY_MODES) writeLayoutMode(page, mode, switchLayout);
+  setLayoutRemaps(page, switchLayout);
 }
 
 // --- lighting page (32), 635 bytes -------------------------------------------

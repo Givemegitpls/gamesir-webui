@@ -77,8 +77,6 @@ for (const file of scripts) {
   }
 }
 check('tags are balanced in every module', true);
-check('layout switcher is wired', readFileSync(join(root, 'web/js/main.js'), 'utf8').includes("getElementById('layout-xbox')")
-  || readFileSync(join(root, 'web/js/main.js'), 'utf8').includes("querySelector('#layout-xbox')"));
 check('button test strip container exists', htmlIds.has('button-test'));
 check(
   'd-pad cross uses the standard indices',
@@ -127,7 +125,13 @@ check(
   'drift banner text container is a block element',
   /<div id="drift-text"><\/div>/.test(html),
 );
-check('layout buttons live inside the editor template', /id="layout-xbox"/.test(readFileSync(join(root, 'web/js/main.js'), 'utf8')));
+// ABXY layout editing is disabled: the per-mode flags do not apply to
+// Bluetooth sessions, so the editor only keeps the commented-out block.
+const mainSource = readFileSync(join(root, 'web/js/main.js'), 'utf8');
+check(
+  'per-mode layout UI is disabled, not rendered',
+  !/^\s*\$\{layoutBlock\(\)\}/m.test(mainSource) && mainSource.includes('ABXY layout editing is disabled'),
+);
 
 console.log(failures.length ? `\n${failures.length} failure(s)` : '\nall checks passed');
 process.exit(failures.length ? 1 : 0);

@@ -18,7 +18,6 @@ import {
   TRIGGER_BLOCKS,
   byteDiff,
   decodeProfileName,
-  describeAbxyFlags,
   encodeProfileName,
   enterConfig,
   exitConfig,
@@ -28,13 +27,17 @@ import {
   hexToRgb,
   rgbToHex,
   readFirmware,
-  readLayout,
+  // readLayout, writeLayoutMode and setLayoutRemaps stay in protocol.js, but the
+  // layout UI is disabled (the flags do not apply to Bluetooth sessions), so the
+  // editor no longer imports them:
+  // readLayout,
   readLight,
   readMacro,
   readMapping,
   readPage,
   switchProfile,
-  writeLayout,
+  // setLayoutRemaps,
+  // writeLayoutMode,
   writeLight,
   writeMacro,
   writeMapping,
@@ -153,8 +156,18 @@ function renderEditor() {
           <input type="text" id="profile-name" maxlength="31" size="28" value="${escapeAttr(decodeProfileName(desired))}">
         </label>
       </div>
-      ${layoutBlock()}
-      <h3>${t('editor.general')} <small>Fun_Data 0x20…0x3e</small></h3>
+    // ABXY layout editing is disabled on purpose (07.11).
+    // The profile flags 0x2c (xinput_abxy_change) and 0x2d (switch_abxy_change)
+    // only take effect in wired modes. A Bluetooth session inherits whatever
+    // layout the last wired mode set: it does not re-read the profile, so the
+    // same bytes give "switch" over cable and "xbox" over BT depending on how
+    // the pad was last used. The pad's own M + A combo writes the global
+    // A<->B / X<->Y remaps in the 0x40 block instead of a per-mode flag, so it
+    // is global too. protocol.js still exports readLayout/writeLayoutMode/
+    // setLayoutRemaps and tools/test-protocol.mjs covers them; the UI block can
+    // come back if firmware ever honours the flags per connection mode.
+    // ${layoutBlock()}
+    <h3>${t('editor.general')} <small>Fun_Data 0x20…0x3e</small></h3>
       <div class="fields">${fields}</div>
     </div>`;
   };
@@ -187,25 +200,30 @@ function renderEditor() {
 
 
 
+  // Disabled: see the note in the editor template above. Kept for reference so
+  // the per-mode switches can be restored together with their handlers.
+  /*
   const layoutBlock = () => {
     const layout = readLayout(desired);
-    const swapped = layout.switchLayout;
-    const current = swapped ? t('layout.switchName') : t('layout.xboxName');
-    const detail = t('layout.detail', {
-      flag: layout.flag ? t('layout.flagOn') : t('layout.flagOff'),
-      remaps: layout.remapsSwapped ? t('layout.remapsSwapped') : t('layout.remapsPlain'),
-    });
+    const remaps = layout.remapsSwapped
+      ? `<span class="hint warn">${t('layout.remapsWarn')}
+          <button type="button" id="layout-clear-remaps">${t('layout.clearRemaps')}</button>
+        </span>`
+      : `<span class="hint">${t('layout.remapsNone')}</span>`;
     return `<h3>${t('layout.title')} <small>${t('layout.profile', { page: loadedPage ?? '—' })}</small></h3>
       <div class="fields">
-        <span class="hint">
-          ${t('layout.now', { current, detail })}
-          ${t('layout.explain')}
-        </span>
-        <button type="button" id="layout-xbox" ${swapped ? '' : 'disabled'}>${t('layout.xboxButton')}</button>
-        <button type="button" id="layout-switch" ${swapped ? 'disabled' : ''}>${t('layout.switchButton')}</button>
+        <span class="hint">${t('layout.explain')}</span>
+        <label>${t('layout.xinputMode')}
+          <input type="checkbox" id="layout-mode-xinput" ${layout.xinputSwitch ? 'checked' : ''}>
+        </label>
+        <label>${t('layout.switchMode')}
+          <input type="checkbox" id="layout-mode-switch" ${layout.switchSwitch ? 'checked' : ''}>
+        </label>
+        ${remaps}
       </div>
 `;
   };
+  */
 
   const macroBlock = (item) => {
     const macro = readMacro(desired, item.base);
@@ -300,14 +318,28 @@ function renderEditor() {
     });
   });
 
-  const setLayout = (swap) => {
-    writeLayout(desired, swap);
+  // Disabled together with the layout block: the per-mode flags do not apply to
+  // Bluetooth sessions (see the note in the editor template above).
+  /*
+  const setLayoutMode = (mode, swap) => {
+    writeLayoutMode(desired, mode, swap);
     updateButtons();
     renderEditor();
-    statusKey(swap ? 'layout.appliedSwitch' : 'layout.appliedXbox', {}, 'ok');
+    statusKey(swap ? 'layout.appliedOn' : 'layout.appliedOff', { mode: t(`layout.mode.${mode}`) }, 'ok');
   };
-  editorEl.querySelector('#layout-xbox')?.addEventListener('click', () => setLayout(false));
-  editorEl.querySelector('#layout-switch')?.addEventListener('click', () => setLayout(true));
+  editorEl.querySelector('#layout-mode-xinput')?.addEventListener('change', (event) => {
+    setLayoutMode('xinput', event.target.checked);
+  });
+  editorEl.querySelector('#layout-mode-switch')?.addEventListener('change', (event) => {
+    setLayoutMode('switch', event.target.checked);
+  });
+  editorEl.querySelector('#layout-clear-remaps')?.addEventListener('click', () => {
+    setLayoutRemaps(desired, false);
+    updateButtons();
+    renderEditor();
+    statusKey('layout.remapsCleared', {}, 'ok');
+  });
+  */
 }
 
 

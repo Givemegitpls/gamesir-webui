@@ -41,6 +41,8 @@ import {
   readFirmware,
   readPage,
   writeLayout,
+  writeLayoutMode,
+  setLayoutRemaps,
   writeLight,
   writeMacro,
   writeMapping,
@@ -265,16 +267,41 @@ check('action codes are unique', new Set(actions.actions.map((a) => a.code)).siz
 check('captured macro target exists in the dictionary', actions.actions.some((a) => a.code === fixturePage[MACROS[0].base + 3]), String(fixturePage[MACROS[0].base + 3]));
 check('A/B/X/Y codes are 9/10/11/12', byName.CRO === 9 && byName.CIR === 10 && byName.SQU === 11 && byName.TRI === 12);
 
-// ABXY layout: two independent markers - the 0x2c flag and the four remaps.
-// Switch is "flag OR remaps"; the writers set and clear both together.
+// ABXY layout: two independent per-mode flags (0x2c for XInput, 0x2d for Switch)
+// plus global remaps in the 0x40 block, which override both flags.
 check('abxy flags are 0x2c / 0x2d', ABXY_FLAGS.xinput === 0x2c && ABXY_FLAGS.switch === 0x2d);
 check('captured profile 1 is xbox', readLayout(fixturePage).switchLayout === false);
+check(
+  'captured profile 1 has no per-mode switch',
+  !readLayout(fixturePage).xinputSwitch && !readLayout(fixturePage).switchSwitch,
+);
 check('raw flag description', describeAbxyFlags(fixturePage) === '0x2c=0, 0x2d=0', describeAbxyFlags(fixturePage));
 
-const flagOnly = fixturePage.slice();
-flagOnly[0x2c] = 1;
-const flagOnlyLayout = readLayout(flagOnly);
-check('flag alone means switch', flagOnlyLayout.switchLayout === true && flagOnlyLayout.flag === true && flagOnlyLayout.remapsSwapped === false);
+// per-mode switch: writing one flag must leave the other mode untouched
+const perMode = fixturePage.slice();
+writeLayoutMode(perMode, 'switch', true);
+check('0x2d alone does not affect xinput', perMode[0x2d] === 1 && perMode[0x2c] === 0);
+check(
+  'switch-mode flag read back',
+  readLayout(perMode).switchSwitch === true &&
+    readLayout(perMode).xinputSwitch === false &&
+    readLayout(perMode).switchLayout === false,
+);
+writeLayoutMode(perMode, 'xinput', true);
+check('0x2c alone means switch in xinput', readLayout(perMode).switchLayout === true && readLayout(perMode).xinputSwitch === true);
+writeLayoutMode(perMode, 'xinput', false);
+check(
+  'clearing xinput keeps the switch-mode flag',
+  readLayout(perMode).switchLayout === false && readLayout(perMode).switchSwitch === true,
+);
+check('per-mode writer leaves remaps alone', readLayout(perMode).remapsSwapped === false);
+let badModeThrew = false;
+try {
+  writeLayoutMode(perMode, 'nope', true);
+} catch {
+  badModeThrew = true;
+}
+check('unknown layout mode is rejected', badModeThrew);
 
 const remapOnly = fixturePage.slice();
 writeMapping(remapOnly, 8, { ...readMapping(remapOnly, 8), targets: [10, 0, 0] });
@@ -282,16 +309,44 @@ writeMapping(remapOnly, 9, { ...readMapping(remapOnly, 9), targets: [9, 0, 0] })
 writeMapping(remapOnly, 10, { ...readMapping(remapOnly, 10), targets: [12, 0, 0] });
 writeMapping(remapOnly, 11, { ...readMapping(remapOnly, 11), targets: [11, 0, 0] });
 const remapOnlyLayout = readLayout(remapOnly);
-check('remaps alone mean switch', remapOnlyLayout.switchLayout === true && remapOnlyLayout.flag === false && remapOnlyLayout.remapsSwapped === true);
+check(
+  'remaps alone mean switch in every mode',
+  remapOnlyLayout.switchLayout === true &&
+    remapOnlyLayout.xinputSwitch === false &&
+    remapOnlyLayout.switchSwitch === false &&
+    remapOnlyLayout.remapsSwapped === true,
+);
+
+const cleared = fixturePage.slice();
+setLayoutRemaps(cleared, false);
+check('clearing remaps touches nothing when there are none', Buffer.from(cleared).equals(Buffer.from(fixturePage)));
+setLayoutRemaps(cleared, true);
+check(
+  'remap writer does not touch the flags',
+  readLayout(cleared).remapsSwapped === true &&
+    readLayout(cleared).xinputSwitch === false &&
+    readLayout(cleared).switchSwitch === false,
+);
 
 const switched = fixturePage.slice();
 writeLayout(switched, true);
 const switchedLayout = readLayout(switched);
-check('writer sets flag and remaps', switchedLayout.flag === true && switchedLayout.remapsSwapped === true && switchedLayout.switchFlag === true);
+check(
+  'legacy writer sets both flags and remaps',
+  switchedLayout.xinputSwitch === true &&
+    switchedLayout.switchSwitch === true &&
+    switchedLayout.remapsSwapped === true,
+);
 check('writer keeps remap targets', readMapping(switched, 8).targets[0] === 10 && readMapping(switched, 11).targets[0] === 11);
 writeLayout(switched, false);
 const backLayout = readLayout(switched);
-check('writer clears both markers', backLayout.flag === false && backLayout.remapsSwapped === false && backLayout.switchLayout === false);
+check(
+  'writer clears both markers',
+  backLayout.xinputSwitch === false &&
+    backLayout.switchSwitch === false &&
+    backLayout.remapsSwapped === false &&
+    backLayout.switchLayout === false,
+);
 check('clearing touches only the four remaps', Buffer.from(switched).equals(Buffer.from(fixturePage)));
 
 // the real unit: session-start profile 4 held swapped remaps *and* flags 1/1
@@ -301,7 +356,7 @@ const capturedLayout = readLayout(profile4);
 check('captured profile 4 is switch', capturedLayout.switchLayout === true, JSON.stringify(capturedLayout));
 // in that early backup the switch comes from the remaps alone; the 0x2c flag was
 // set later by the pad's own M + A combo (observed live: 1/1, then 1/0)
-check('captured profile 4 switches via remaps', capturedLayout.flag === false && capturedLayout.remapsSwapped === true);
+check('captured profile 4 switches via remaps', capturedLayout.xinputSwitch === false && capturedLayout.remapsSwapped === true);
 check('profile 2 of that backup is xbox', readLayout(new Uint8Array(readFileSync(join(fixtures, 'page-02.bin')))).switchLayout === false);
 
 // --- batch 6: lighting page (635 bytes) --------------------------------------
