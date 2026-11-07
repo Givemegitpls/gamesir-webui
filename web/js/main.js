@@ -3,6 +3,8 @@
 import { GameSirHid } from './hid.js';
 import {
   CLICKY_TRIGGER,
+  DEADZONE_BLOCKS,
+  DEADZONE_GAP,
   EDITABLE_ZONE_INDEXES,
   FIELD_LABEL_KEYS,
   FUN_FIELDS,
@@ -16,12 +18,15 @@ import {
   SHIFT_PAGE,
   STICK_BLOCKS,
   TRIGGER_BLOCKS,
+  clampZonePair,
   byteDiff,
   decodeProfileName,
+  deadzoneLimits,
   encodeProfileName,
   enterConfig,
   exitConfig,
   mappingOffset,
+  normalizeDeadzone,
   pageLength,
   readCurrentProfile,
   hexToRgb,
@@ -35,6 +40,7 @@ import {
   readMacro,
   readMapping,
   readPage,
+  readStickZones,
   switchProfile,
   // setLayoutRemaps,
   // writeLayoutMode,
@@ -42,6 +48,7 @@ import {
   writeMacro,
   writeMapping,
   writePageDiff,
+  writeStickZones,
 } from './protocol.js';
 import { actionCount, actionLabel, actionOptions, loadActions, searchActions } from './actions.js';
 import {
@@ -73,6 +80,8 @@ const applyBtn = document.getElementById('apply');
 const revertBtn = document.getElementById('revert');
 const readBtn = document.getElementById('read');
 const pageSel = document.getElementById('page');
+const zoneWriteBtn = document.getElementById('zone-write');
+const zoneStatusEl = document.getElementById('zone-status');
 
 let hid = null;
 let original = null; // page bytes as read from the device
@@ -105,6 +114,15 @@ const statusKey = (key, params = {}, cls = '') => {
   statusEl.textContent = t(key, params);
   statusEl.className = `status ${cls}`;
 };
+// The live card carries its own one-line status, translated the same way.
+let zoneState = null;
+const zoneStatus = (key, params = {}, cls = '') => {
+  zoneState = key ? { key, params, cls } : null;
+  if (!zoneStatusEl) return;
+  zoneStatusEl.textContent = key ? t(key, params) : '';
+  zoneStatusEl.className = `hint ${cls}`;
+};
+
 // Keyed errors are re-translated on a language switch; raw ones (browser/device
 // text) are shown as they came.
 const showError = (err, cls = 'warn') => {
@@ -125,6 +143,16 @@ function renderEditor() {
   const escapeAttr = (value) =>
     String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // ABXY layout editing is disabled on purpose (07.11).
+  // The profile flags 0x2c (xinput_abxy_change) and 0x2d (switch_abxy_change)
+  // only take effect in wired modes. A Bluetooth session inherits whatever
+  // layout the last wired mode set: it does not re-read the profile, so the
+  // same bytes give "switch" over cable and "xbox" over BT depending on how
+  // the pad was last used. The pad's own M + A combo writes the global
+  // A<->B / X<->Y remaps in the 0x40 block instead of a per-mode flag, so it
+  // is global too. protocol.js still exports readLayout/writeLayoutMode/
+  // setLayoutRemaps and tools/test-protocol.mjs covers them; the UI block can
+  // come back if firmware ever honours the flags per connection mode.
   const generalBlock = () => {
     const fields = FUN_FIELDS.map((field) => {
       const value = desired[field.offset];
@@ -155,17 +183,6 @@ function renderEditor() {
           <input type="text" id="profile-name" maxlength="31" size="28" value="${escapeAttr(decodeProfileName(desired))}">
         </label>
       </div>
-    // ABXY layout editing is disabled on purpose (07.11).
-    // The profile flags 0x2c (xinput_abxy_change) and 0x2d (switch_abxy_change)
-    // only take effect in wired modes. A Bluetooth session inherits whatever
-    // layout the last wired mode set: it does not re-read the profile, so the
-    // same bytes give "switch" over cable and "xbox" over BT depending on how
-    // the pad was last used. The pad's own M + A combo writes the global
-    // A<->B / X<->Y remaps in the 0x40 block instead of a per-mode flag, so it
-    // is global too. protocol.js still exports readLayout/writeLayoutMode/
-    // setLayoutRemaps and tools/test-protocol.mjs covers them; the UI block can
-    // come back if firmware ever honours the flags per connection mode.
-    // ${layoutBlock()}
     <h3>${t('editor.general')} <small>Fun_Data 0x20…0x3e</small></h3>
       <div class="fields">${fields}</div>
     </div>`;
@@ -175,15 +192,19 @@ function renderEditor() {
     const fields = Object.entries(block.fields)
       .map(([key, offset]) => {
         const isFlag = key === 'enabled';
+        const limits = isFlag ? null : deadzoneLimits(desired, block, key);
         const control = isFlag
           ? `<input type="checkbox" data-offset="${offset}" ${desired[offset] ? 'checked' : ''}>`
-          : `<input type="number" min="0" max="100" data-offset="${offset}" value="${desired[offset]}">`;
+          : `<input type="number" min="${limits.min}" max="${limits.max}" step="1"
+              data-offset="${offset}" data-deadzone="${block.id}" data-deadzone-key="${key}"
+              value="${desired[offset]}">`;
         return `<label>${t(FIELD_LABEL_KEYS[key])}${control}</label>`;
       })
       .join('');
     return `<div class="block">
       <h3>${t(block.labelKey)} <small>0x${block.offset.toString(16)}</small></h3>
       <div class="fields">${fields}</div>
+      <p class="hint">${t('editor.deadzoneHint', { gap: DEADZONE_GAP })}</p>
     </div>`;
   };
 
@@ -199,7 +220,7 @@ function renderEditor() {
 
 
 
-  // Disabled: see the note in the editor template above. Kept for reference so
+  // Disabled: see the note above generalBlock. Kept for reference so
   // the per-mode switches can be restored together with their handlers.
   /*
   const layoutBlock = () => {
@@ -307,6 +328,26 @@ function renderEditor() {
     input.addEventListener('change', () => applyField(input));
   });
 
+  // A zone pair must keep a gap: pull the partner handle into range once the
+  // edited field is committed, and mirror the result into both inputs.
+  editorEl.querySelectorAll('input[data-deadzone]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const block = DEADZONE_BLOCKS.find((item) => item.id === input.dataset.deadzone);
+      if (!block) return;
+      if (!normalizeDeadzone(desired, block, input.dataset.deadzoneKey).length) return;
+      for (const [key, offset] of Object.entries(block.fields)) {
+        if (key === 'enabled') continue;
+        const field = editorEl.querySelector(`input[data-offset="${offset}"]`);
+        if (!field) continue;
+        field.value = desired[offset];
+        const limits = deadzoneLimits(desired, block, key);
+        field.min = limits.min;
+        field.max = limits.max;
+      }
+      updateButtons();
+    });
+  });
+
   editorEl.querySelectorAll('button[data-macro]').forEach((button) => {
     button.addEventListener('click', () => {
       const stepDelta = button.dataset.field === 'addStep' ? 1 : -1;
@@ -318,7 +359,7 @@ function renderEditor() {
   });
 
   // Disabled together with the layout block: the per-mode flags do not apply to
-  // Bluetooth sessions (see the note in the editor template above).
+  // Bluetooth sessions (see the note above generalBlock).
   /*
   const setLayoutMode = (mode, swap) => {
     writeLayoutMode(desired, mode, swap);
@@ -709,6 +750,12 @@ function updateMacro(id, mutate) {
 }
 
 function updateButtons() {
+  // The live card writes to every profile at once, so it only needs a connection.
+  if (zoneWriteBtn) {
+    zoneWriteBtn.disabled = !hid;
+    if (!hid) zoneStatus('live.zoneNeedsDevice');
+    else if (zoneState?.key === 'live.zoneNeedsDevice') zoneStatus(null);
+  }
   if (!desired || !original) {
     applyBtn.disabled = true;
     revertBtn.disabled = true;
@@ -798,6 +845,9 @@ async function loadCurrent() {
   original = bytes;
   desired = bytes.slice();
   loadedPage = page;
+  // The live card edits the same two numbers, so it shows what the pad stores.
+  const ls = STICK_BLOCKS[0];
+  liveView?.setZones?.({ inner: bytes[ls.fields.center], outer: bytes[ls.fields.edge] });
   renderEditor();
   updateButtons();
   statusKey('status.profileRead', { page, active: currentIndex }, 'ok');
@@ -829,6 +879,74 @@ async function applyChanges() {
   renderEditor();
   statusKey('status.applied', { packets: payment.sent }, 'ok');
 }
+
+// --- stick zones for all profiles at once (live card) ------------------------
+//
+// The sliders describe one deadzone pair; the button stores it in profiles 1..4
+// so a single gesture stops being a per-page chore. Writing also sets dead_en:
+// without the flag the stored values are dead weight in the profile.
+
+const profileZoneBlocks = STICK_BLOCKS;
+
+function patchZoneBytes(buffer, zones) {
+  for (const block of profileZoneBlocks) {
+    buffer[block.fields.enabled] = 1;
+    buffer[block.fields.center] = zones.inner;
+    buffer[block.fields.edge] = zones.outer;
+  }
+}
+
+async function writeZonesToProfiles() {
+  if (!hid || !hid.opened) {
+    zoneStatus('live.zoneNeedsDevice', {}, 'warn');
+    return;
+  }
+  const zones = clampZonePair(liveView?.zones?.() ?? { inner: 2, outer: 100 });
+  zoneStatus('live.zoneWriting', zones);
+  log(`zones: writing inner ${zones.inner}% / outer ${zones.outer}% to pages ${PROFILE_PAGES.join(', ')}`);
+  try {
+    const result = await withConfig(async () => {
+      let packets = 0;
+      for (const page of PROFILE_PAGES) packets += await writeStickZones(hid, page, zones);
+      const checks = [];
+      for (const page of PROFILE_PAGES) {
+        const back = await readStickZones(hid, page);
+        const same = [back.ls, back.rs].every((zone) => zone.inner === zones.inner && zone.outer === zones.outer);
+        checks.push({ page, same, back });
+      }
+      return { packets, checks };
+    });
+    const bad = result.checks.filter((item) => !item.same);
+    log(
+      `zones: ${result.packets} packet(s), verify ${result.checks
+        .map((item) => `${item.page}:${item.same ? 'ok' : `ls ${item.back.ls.inner}/${item.back.ls.outer} rs ${item.back.rs.inner}/${item.back.rs.outer}`}`)
+        .join(', ')}`,
+    );
+    if (bad.length) {
+      zoneStatus('live.zoneMismatch', { pages: bad.map((item) => item.page).join(', ') }, 'warn');
+      statusKey('live.zoneMismatch', { pages: bad.map((item) => item.page).join(', ') }, 'warn');
+      return;
+    }
+    // The editor buffer may hold the same pages: patch the zone bytes in place so
+    // unsaved edits elsewhere survive and no phantom diff appears.
+    if (desired && PROFILE_PAGES.includes(loadedPage)) {
+      patchZoneBytes(original, zones);
+      patchZoneBytes(desired, zones);
+      renderEditor();
+      updateButtons();
+    }
+    zoneStatus('live.zoneWritten', zones, 'ok');
+    statusKey('live.zoneWritten', zones, 'ok');
+  } catch (err) {
+    zoneStatus(null);
+    showError(err);
+    log(`zones: failed: ${err.message}`);
+  }
+}
+
+zoneWriteBtn?.addEventListener('click', () => {
+  writeZonesToProfiles();
+});
 
 function downloadBackup(pages) {
   const payload = {
@@ -1292,7 +1410,7 @@ const renderModeHint = (meta) => {
     el.className = 'hint warn';
   }
 };
-startLiveView(document, (meta) => {
+const liveView = startLiveView(document, (meta) => {
   padMode = meta?.mode ?? null;
   renderModeHint(meta);
 });
@@ -1309,6 +1427,7 @@ onLangChange(() => {
   renderCalPanel();
   renderModeHint(padMode ? { mode: padMode } : null);
   if (statusState) statusEl.textContent = t(statusState.key, statusState.params);
+  if (zoneState && zoneStatusEl) zoneStatusEl.textContent = t(zoneState.key, zoneState.params);
 });
 
 // A previously granted device can be opened without the picker.

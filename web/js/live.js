@@ -1,12 +1,14 @@
 // Live controller view via the Gamepad API (no permissions, no WebHID needed).
 //
 // Sticks are drawn raw: values come straight from the pad with no deadzone
-// applied, so a stale centre (stick reports 0.08 at rest) is visible. The
-// crosshair highlights when the dot sits inside the small centre tolerance.
+// applied, so a stale centre (stick reports 0.08 at rest) is visible. Two rings
+// mark the deadzone pair the card edits: the inner one lights when the dot sits
+// inside it, the outer one when the stick reaches full travel.
 
 import { isCentered, pickGamepad, readButtons, readInputs } from './gamepad.js';
 import { onLangChange, t } from './i18n.js';
 import { ACCEL_PER_G, motionState } from './motion.js';
+import { clampZonePair } from './protocol.js';
 
 const RANGE = 100; // viewBox units per 1.0 of axis travel
 const DASH = '—';
@@ -16,8 +18,10 @@ const signed = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
 
 export function startLiveView(doc = document, onMode = () => {}) {
   const info = doc.getElementById('padinfo');
-  const tolInput = doc.getElementById('center-tol');
-  const tolOut = doc.getElementById('center-tol-out');
+  const innerInput = doc.getElementById('zone-inner');
+  const outerInput = doc.getElementById('zone-outer');
+  const innerOut = doc.getElementById('zone-inner-out');
+  const outerOut = doc.getElementById('zone-outer-out');
   const ltBar = doc.getElementById('lt-bar');
   const rtBar = doc.getElementById('rt-bar');
   const ltVal = doc.getElementById('lt-val');
@@ -44,17 +48,34 @@ export function startLiveView(doc = document, onMode = () => {}) {
     if (stick.badge) stick.badge.textContent = t('live.centred');
   }
 
-  const tolerance = () => (Number(tolInput?.value ?? 2) / 100);
+  const zoneValues = () => ({
+    inner: Number(innerInput?.value ?? 2),
+    outer: Number(outerInput?.value ?? 100),
+  });
 
-  function updateTolerance() {
-    const tol = tolerance();
-    if (tolOut) tolOut.textContent = `${(tol * 100).toFixed(1)}%`;
+  // The card owns the pair: the sliders keep the 10% gap and the rings follow
+  // them, so what the picture shows is what a write would store.
+  function syncZoneSliders() {
+    const { inner, outer } = zoneValues();
+    if (innerOut) innerOut.textContent = `${inner}%`;
+    if (outerOut) outerOut.textContent = `${outer}%`;
     for (const stick of Object.values(sticks)) {
-      stick.tolerance?.setAttribute('r', String(Math.max(0, tol * RANGE)));
+      stick.tolerance?.setAttribute('r', String((inner / 100) * RANGE));
+      stick.edge?.setAttribute('r', String((outer / 100) * RANGE));
     }
   }
-  tolInput?.addEventListener('input', updateTolerance);
-  updateTolerance();
+
+  function onZoneInput(event) {
+    const moved = event?.target === outerInput ? 'outer' : 'inner';
+    const zones = clampZonePair(zoneValues(), moved);
+    if (innerInput) innerInput.value = String(zones.inner);
+    if (outerInput) outerInput.value = String(zones.outer);
+    syncZoneSliders();
+  }
+
+  innerInput?.addEventListener('input', onZoneInput);
+  outerInput?.addEventListener('input', onZoneInput);
+  syncZoneSliders();
 
   let lastKey = null;
   let lastMeta = null;
@@ -154,6 +175,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
         doc.querySelectorAll('[data-button]').forEach((badge) => badge.classList.remove('on'));
         for (const stick of Object.values(sticks)) {
           stick.figure.classList.remove('centered');
+          stick.figure.classList.remove('edge-on');
           if (stick.badge) stick.badge.textContent = '';
         }
       }
@@ -172,14 +194,18 @@ export function startLiveView(doc = document, onMode = () => {}) {
     }
 
     const input = readInputs(pad);
-    const tol = tolerance();
+    const zones = clampZonePair(zoneValues());
+    const tol = zones.inner / 100;
+    const rim = zones.outer / 100;
     for (const [name, position] of [
       ['ls', input.ls],
       ['rs', input.rs],
     ]) {
       const stick = sticks[name];
       const centered = isCentered(position, tol);
+      const atEdge = !centered && Math.hypot(position.x, position.y) >= rim;
       stick.figure.classList.toggle('centered', centered);
+      stick.figure.classList.toggle('edge-on', atEdge);
       stick.dot?.setAttribute('cx', String(position.x * RANGE));
       stick.dot?.setAttribute('cy', String(position.y * RANGE));
       if (stick.coords) {
@@ -190,7 +216,9 @@ export function startLiveView(doc = document, onMode = () => {}) {
       if (stick.badge) {
         stick.badge.textContent = centered
           ? t('live.centred')
-          : t('live.offCentre', { value: Math.hypot(position.x, position.y).toFixed(3) });
+          : atEdge
+            ? t('live.atOuter')
+            : t('live.offCentre', { value: Math.hypot(position.x, position.y).toFixed(3) });
       }
     }
 
@@ -283,6 +311,14 @@ export function startLiveView(doc = document, onMode = () => {}) {
   start();
 
   return {
+    // The write button lives in main.js; it reads and sets the same pair.
+    zones: () => zoneValues(),
+    setZones(next) {
+      const zones = clampZonePair({ ...zoneValues(), ...next });
+      if (innerInput) innerInput.value = String(zones.inner);
+      if (outerInput) outerInput.value = String(zones.outer);
+      syncZoneSliders();
+    },
     stop() {
       running = false;
       cancelRaf();
@@ -299,6 +335,7 @@ function mount(doc, name) {
     figure,
     dot: figure?.querySelector('.dot'),
     tolerance: figure?.querySelector('.tolerance'),
+    edge: figure?.querySelector('.edge'),
     coords: doc.querySelector(`[data-coords="${name}"]`),
     badge: figure?.querySelector('.badge'),
   };

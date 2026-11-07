@@ -239,6 +239,18 @@ code {
   stroke-width: 1.5;
   stroke-dasharray: 4 4;
 }
+.stick .edge {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+}
+.stick.edge-on .edge {
+  stroke: var(--accent);
+}
+.stick.edge-on .badge {
+  color: var(--accent);
+}
 .stick .dot {
   fill: var(--accent);
 }
@@ -317,6 +329,15 @@ code {
 .bar-v em b {
   color: var(--fg);
   font-weight: 600;
+}
+.zone-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.zone-bar button {
+  white-space: nowrap;
 }
 .tol {
   display: flex;

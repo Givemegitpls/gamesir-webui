@@ -111,5 +111,16 @@ check(
   !/^\s*\$\{layoutBlock\(\)\}/m.test(mainSource) && mainSource.includes('ABXY layout editing is disabled'),
 );
 
+// A `//` comment inside a template literal is not a comment: the text is
+// emitted into the HTML and any ${...} in it is evaluated. That is how the
+// disabled layout block once broke renderEditor with "layoutBlock is not
+// defined" — the editor stopped drawing at all.
+const commentedExpressions = [...mainSource.matchAll(/^\s*\/\/.*\$\{/gm)].map((m) => m[0].trim());
+check(
+  'no template expressions hidden in comments',
+  commentedExpressions.length === 0,
+  commentedExpressions.join(' | '),
+);
+
 console.log(failures.length ? `\n${failures.length} failure(s)` : '\nall checks passed');
 process.exit(failures.length ? 1 : 0);

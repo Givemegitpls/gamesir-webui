@@ -63,6 +63,112 @@ export const FIELD_LABEL_KEYS = {
   antiEnd: 'field.antiEnd',
 };
 
+// The vendor app keeps a gap between the two handles of the same zone
+// (resolveDeadzoneRange with minGap = 100 on its 0…1000 scale, i.e. 10 points).
+// It clamps the handle the user did not move; we normalise the pair after the
+// field loses focus instead of silently rewriting the other value while typing.
+export const DEADZONE_GAP = 10;
+
+const ZONE_PAIRS = [
+  ['center', 'edge'],
+  ['antiBegin', 'antiEnd'],
+];
+
+function pairOf(key) {
+  return ZONE_PAIRS.find((pair) => pair.includes(key)) ?? null;
+}
+
+export function isDeadzoneField(key) {
+  return pairOf(key) !== null;
+}
+
+// Allowed range for one handle, given the value of its partner.
+export function deadzoneLimits(buffer, block, key) {
+  const pair = pairOf(key);
+  if (!pair) return { min: 0, max: 100 };
+  const [start, end] = pair;
+  if (key === start) return { min: 0, max: Math.max(0, buffer[block.fields[end]] - DEADZONE_GAP) };
+  return { min: Math.min(100, buffer[block.fields[start]] + DEADZONE_GAP), max: 100 };
+}
+
+// Push the partner (and the moved handle itself) back into range. Returns the
+// list of handles that changed, so the caller can refresh just those inputs.
+export function normalizeDeadzone(buffer, block, moved) {
+  const pair = pairOf(moved);
+  if (!pair) return [];
+  const [start, end] = pair;
+  const startOffset = block.fields[start];
+  const endOffset = block.fields[end];
+  const changed = [];
+  const set = (offset, value) => {
+    if (buffer[offset] === value) return;
+    buffer[offset] = value;
+    changed.push(offset);
+  };
+  if (buffer[startOffset] > 100 - DEADZONE_GAP) set(startOffset, 100 - DEADZONE_GAP);
+  if (buffer[endOffset] < DEADZONE_GAP) set(endOffset, DEADZONE_GAP);
+  if (buffer[endOffset] - buffer[startOffset] < DEADZONE_GAP) {
+    if (moved === start) set(endOffset, buffer[startOffset] + DEADZONE_GAP);
+    else set(startOffset, buffer[endOffset] - DEADZONE_GAP);
+  }
+  return changed;
+}
+
+// Same rule for the two sliders in the live card, which edit one pair of
+// numbers before it is written to the profiles. Without a `moved` hint the inner
+// handle wins: it is the value that is tuned first, so the outer one gives way.
+export function clampZonePair({ inner, outer }, moved = 'inner') {
+  const clamp = (value, lo, hi) => Math.min(Math.max(Math.round(Number(value) || 0), lo), hi);
+  let inside = clamp(inner, 0, 100 - DEADZONE_GAP);
+  let outside = clamp(outer, DEADZONE_GAP, 100);
+  if (outside - inside < DEADZONE_GAP) {
+    if (moved === 'inner') outside = Math.min(100, inside + DEADZONE_GAP);
+    else inside = Math.max(0, outside - DEADZONE_GAP);
+  }
+  return { inner: inside, outer: outside };
+}
+
+// --- stick zones straight from the live card ---------------------------------
+//
+// The two sliders write the same pair of bytes into every profile page at once:
+// dead_en, inner (front_dead / beginDeadzone), outer (back_dead / endDeadzone).
+// dead_en is set on purpose: the vendor app does the same when a deadzone model
+// is edited, and with the flag at 0 the values in the profile do nothing.
+// The three bytes are contiguous, so one range write covers a whole stick.
+
+function zoneRange(block) {
+  const from = block.fields.enabled;
+  return { from, length: block.fields.edge - from + 1 };
+}
+
+export async function writeStickZones(hid, page, { inner, outer }) {
+  const { inner: inside, outer: outside } = clampZonePair({ inner, outer });
+  let packets = 0;
+  for (const block of STICK_BLOCKS) {
+    const { from, length } = zoneRange(block);
+    const payload = [1, inside, outside];
+    if (payload.length !== length) throw new Error(`unexpected zone range at 0x${from.toString(16)}`);
+    await hid.command(
+      CMD.writeProfile,
+      [page, (from >> 8) & 0xff, from & 0xff, payload.length, ...payload],
+      100,
+    );
+    packets += 1;
+  }
+  return packets;
+}
+
+export async function readStickZones(hid, page) {
+  const readOne = async (block) => {
+    const { from, length } = zoneRange(block);
+    const frames = await hid.commandRetry(CMD.readProfile, [page, (from >> 8) & 0xff, from & 0xff, length], 4, 100);
+    const frame = frames.find((item) => item[4] >= length && ((item[2] << 8) | item[3]) === from);
+    if (!frame) throw new Error(`no reply for zones at 0x${from.toString(16)}`);
+    return { enabled: frame[5] === 1, inner: frame[6], outer: frame[7] };
+  };
+  return { ls: await readOne(STICK_BLOCKS[0]), rs: await readOne(STICK_BLOCKS[1]) };
+}
+
 // --- profile name and the general (Fun_Data) block ---------------------------
 
 export const PROFILE_NAME = { offset: 0x000, length: 32 };

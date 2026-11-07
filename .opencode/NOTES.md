@@ -644,3 +644,49 @@ module-level состояние (`setMotionAvailable`, `pushMotionReport`, `moti
 
 Фикстуры кадров движения: `tools/fixtures/motion/{still,roll}.bin` (по 8 кадров). Тесты:
 `tools/test-motion.mjs`, `tools/test-hid.mjs`, дополнен `tools/test-live.mjs`.
+
+### Регрессия редактора: `//` внутри template literal (08.11)
+
+- В 672148e пояснение про отключённую раскладку ABXY попало **внутрь** template literal
+  `generalBlock()`: строка `// ${layoutBlock()}` — не комментарий, а выражение. `renderEditor()`
+  падал с `layoutBlock is not defined`, редактор не отрисовывался вообще (в статусе красная ошибка),
+  поэтому «исчезли» все секции, включая мёртвые зоны стиков. Исправление: пояснение — обычный
+  JS-комментарий перед `generalBlock()`, из строки удалено.
+- Стражи: `tools/test-page.mjs` → «no template expressions hidden in comments» (ищет `// … ${`
+  в main.js) и новый e2e `tools/test-editor.mjs` — headless Chromium + фейковый WebHID, страница 1
+  собирается из `tools/fixtures/page1-frames.json`, проверяет отрисовку редактора без window.onerror
+  и наличие полей внутренней/внешней зоны у LS/RS/LT/RT. Нужен `chromium` в PATH, иначе skip.
+- Приём для любого UI-теста без пада: стуб `navigator.hid` через
+  `Page.addScriptToEvaluateOnNewDocument`; фейковый device на `sendReport` эмитит `inputreport`
+  с reportId 0x10 и кадром `[0x05, page, hi, lo, len, ...payload]`, на `0x01` — `[0x06, 1]`,
+  на `0x0B` — `[0x0C, idx]`, на `0x09` — `[0x0A, …]`.
+
+### Мёртвые зоны: внутренняя/внешняя явно (08.11)
+
+- Подписи: `field.center` = «внутренняя, %» (`beginDeadzone` / `front_dead`), `field.edge` =
+  «внешняя, %» (`endDeadzone` / `back_dead`), `field.antiBegin/antiEnd` = «анти: начало/конец».
+  Вендорский UI показывает ровно те же две пары слайдеров (Deadzone и AntiDeadzone).
+- `DEADZONE_GAP = 10` в `protocol.js` соответствует `minGap = 100` вендорского
+  `resolveDeadzoneRange` на его шкале 0…1000. `deadzoneLimits(buffer, block, key)` даёт min/max
+  поля с учётом партнёра, `normalizeDeadzone(buffer, block, moved)` подтягивает партнёра после
+  `change` (не во время набора, чтобы не съедать вводимые цифры); покрыто `tools/test-protocol.mjs`.
+- Влияние байта внешней зоны (0x22a) на железе **не проверено**: 08.11 пад не отвечал на `0x01/0x04`
+  (`c2.py read 1` висит — пад спал). Для проверки: записать 0x22a=50 и сравнить насыщение оси
+  в `0x12` при полном отклонении стика.
+
+### Мёртвые зоны стиков: слайдеры в живой карточке (08.11)
+
+- Живая карточка больше не «порог центра»: два слайдера `#zone-inner` (0…90) и `#zone-outer` (10…100)
+  задают пару для LS и RS и рисуют два кольца на схеме стика (`.tolerance` — внутреннее, `.edge` —
+  внешнее). Бейдж: «центр» → «дошёл до внешней зоны» (`live.atOuter`, критерий `hypot(x, y) >= outer`)
+  → «сбит: {value}». Зазор 10% держит `clampZonePair()` (`protocol.js`), при правке одного слайдера
+  второй подтягивается.
+- Кнопка `#zone-write` пишет пару в страницы 1–4 одним проходом: `writeStickZones(hid, page, ...)`
+  шлёт по три байта на стик (`0x228 dead_en=1, 0x229 inner, 0x22a outer`; RS — `0x248…0x24a`),
+  затем `readStickZones()` проверяет чтением назад. `dead_en` ставится намеренно: с нулём значения
+  в профиле не действуют (вендор делает так же). Результат — в `#zone-status` и в лог; при открытой
+  в редакторе странице 1–4 те же байты патчатся в `original`/`desired`, чтобы не терять чужие правки
+  и не показывать фантомный дифф.
+- Подписи слайдеров переиспользуют `field.center` / `field.edge` («внутренняя, %» / «внешняя, %»);
+  ключ `live.tolerance` удалён. E2E `tools/test-editor.mjs` кликает кнопку на фейковом WebHID и
+  проверяет, что ушли 8 кадров (`p1..p4` × `0x228`/`0x248`, payload `1, inner, outer`).

@@ -9,6 +9,7 @@ import {
   CHUNK,
   CLICKY_TRIGGER,
   DEADZONE_BLOCKS,
+  DEADZONE_GAP,
   FUN_FIELDS,
   MACROS,
   MACRO_LEN,
@@ -21,7 +22,11 @@ import {
   STICK_BLOCKS,
   TRIGGER_BLOCKS,
   decodeProfileName,
+  clampZonePair,
+  deadzoneLimits,
   encodeProfileName,
+  isDeadzoneField,
+  normalizeDeadzone,
   describeAbxyFlags,
   mappingOffset,
   readMacro,
@@ -43,10 +48,12 @@ import {
   writeLayout,
   writeLayoutMode,
   setLayoutRemaps,
+  readStickZones,
   writeLight,
   writeMacro,
   writeMapping,
   writePageDiff,
+  writeStickZones,
 } from '../web/js/protocol.js';
 import { CMD } from '../web/js/hid.js';
 import { setLang, t } from '../web/js/i18n.js';
@@ -402,6 +409,129 @@ check('profile LED is read back', rgbToHex(readLight(colourPage).profileLed) ===
 check('hex helpers round-trip', rgbToHex(hexToRgb('#123456')) === '#123456');
 check('hex helper is tolerant', rgbToHex(hexToRgb('nonsense')) === '#000000');
 check('light writers are exported', typeof writeLight === 'function' && typeof readLight === 'function');
+
+// --- deadzone pairs keep the vendor gap (minGap 100 on its 0..1000 scale) ----
+const lsBlock = STICK_BLOCKS[0];
+const zonePage = new Uint8Array(PROFILE_LEN);
+zonePage[lsBlock.fields.center] = 5;
+zonePage[lsBlock.fields.edge] = 100;
+check('zone field detection', isDeadzoneField('edge') && isDeadzoneField('antiBegin') && !isDeadzoneField('enabled'));
+check(
+  'outer handle can be lowered while keeping the gap',
+  deadzoneLimits(zonePage, lsBlock, 'edge').min === 15 && deadzoneLimits(zonePage, lsBlock, 'edge').max === 100,
+  JSON.stringify(deadzoneLimits(zonePage, lsBlock, 'edge')),
+);
+zonePage[lsBlock.fields.edge] = 12;
+check(
+  'inner handle cannot cross the outer one',
+  deadzoneLimits(zonePage, lsBlock, 'center').max === 2,
+  JSON.stringify(deadzoneLimits(zonePage, lsBlock, 'center')),
+);
+
+const movedInner = new Uint8Array(PROFILE_LEN);
+movedInner[lsBlock.fields.center] = 40;
+movedInner[lsBlock.fields.edge] = 45;
+normalizeDeadzone(movedInner, lsBlock, 'center');
+check(
+  'moving the inner handle pushes the outer one out',
+  movedInner[lsBlock.fields.center] === 40 && movedInner[lsBlock.fields.edge] === 50,
+  `${movedInner[lsBlock.fields.center]}/${movedInner[lsBlock.fields.edge]}`,
+);
+
+const movedOuter = new Uint8Array(PROFILE_LEN);
+movedOuter[lsBlock.fields.center] = 40;
+movedOuter[lsBlock.fields.edge] = 45;
+normalizeDeadzone(movedOuter, lsBlock, 'edge');
+check(
+  'moving the outer handle pulls the inner one in',
+  movedOuter[lsBlock.fields.center] === 35 && movedOuter[lsBlock.fields.edge] === 45,
+  `${movedOuter[lsBlock.fields.center]}/${movedOuter[lsBlock.fields.edge]}`,
+);
+
+const edgeLimits = new Uint8Array(PROFILE_LEN);
+edgeLimits[lsBlock.fields.center] = 95;
+edgeLimits[lsBlock.fields.edge] = 100;
+normalizeDeadzone(edgeLimits, lsBlock, 'center');
+check(
+  'inner handle stops at 100 - gap',
+  edgeLimits[lsBlock.fields.center] === 100 - DEADZONE_GAP && edgeLimits[lsBlock.fields.edge] === 100,
+  `${edgeLimits[lsBlock.fields.center]}/${edgeLimits[lsBlock.fields.edge]}`,
+);
+
+const triggerZone = new Uint8Array(PROFILE_LEN);
+triggerZone[TRIGGER_BLOCKS[0].fields.antiBegin] = 60;
+triggerZone[TRIGGER_BLOCKS[0].fields.antiEnd] = 62;
+normalizeDeadzone(triggerZone, TRIGGER_BLOCKS[0], 'antiBegin');
+check(
+  'anti range uses the same gap',
+  triggerZone[TRIGGER_BLOCKS[0].fields.antiEnd] === 70,
+  String(triggerZone[TRIGGER_BLOCKS[0].fields.antiEnd]),
+);
+check('zone on real data is already valid', normalizeDeadzone(page.slice(), lsBlock, 'center').length === 0);
+
+// --- live card write path ----------------------------------------------------
+
+check(
+  'zone bytes are contiguous per stick',
+  STICK_BLOCKS.every((block) => block.fields.edge - block.fields.enabled === 2),
+  STICK_BLOCKS.map((block) => `${block.id} 0x${block.fields.enabled.toString(16)}`).join(','),
+);
+
+check(
+  'clampZonePair keeps the gap and the bounds',
+  JSON.stringify(clampZonePair({ inner: 95, outer: 99 }, 'inner')) === '{"inner":90,"outer":100}' &&
+    JSON.stringify(clampZonePair({ inner: 40, outer: 42 }, 'outer')) === '{"inner":32,"outer":42}' &&
+    JSON.stringify(clampZonePair({ inner: -5, outer: 500 }, 'inner')) === '{"inner":0,"outer":100}',
+  JSON.stringify(clampZonePair({ inner: 95, outer: 99 }, 'inner')),
+);
+
+const zoneStore = new Uint8Array(PROFILE_LEN);
+const zoneHid = {
+  sent: [],
+  async command(cmd, args) {
+    this.sent.push([cmd, ...args]);
+    const offset = (args[1] << 8) | args[2];
+    zoneStore.set(args.slice(4, 4 + args[3]), offset);
+    return [];
+  },
+  async commandRetry(cmd, args) {
+    this.sent.push([cmd, ...args]);
+    const offset = (args[1] << 8) | args[2];
+    const len = args[3];
+    return [Uint8Array.of(0x05, args[0], args[1], args[2], len, ...zoneStore.slice(offset, offset + len))];
+  },
+};
+
+const zonePackets = await writeStickZones(zoneHid, 2, { inner: 12, outer: 40 });
+check('zone write covers both sticks with one packet each', zonePackets === 2, String(zonePackets));
+check(
+  'zone frames carry dead_en, inner and outer',
+  zoneHid.sent.length === 2 &&
+    zoneHid.sent[0][0] === CMD.writeProfile &&
+    zoneHid.sent[0][1] === 2 &&
+    zoneHid.sent[0][2] === 0x02 &&
+    zoneHid.sent[0][3] === 0x28 &&
+    zoneHid.sent[0].slice(4).join(',') === '3,1,12,40' &&
+    zoneHid.sent[1][3] === 0x48 &&
+    zoneHid.sent[1].slice(4).join(',') === '3,1,12,40',
+  JSON.stringify(zoneHid.sent.map((frame) => frame.slice(0, 8))),
+);
+
+const zonesBack = await readStickZones(zoneHid, 2);
+check(
+  'zone read-back parses both sticks',
+  zonesBack.ls.enabled && zonesBack.ls.inner === 12 && zonesBack.ls.outer === 40 &&
+    zonesBack.rs.inner === 12 && zonesBack.rs.outer === 40,
+  JSON.stringify(zonesBack),
+);
+
+zoneHid.sent.length = 0;
+await writeStickZones(zoneHid, 3, { inner: 95, outer: 99 });
+check(
+  'zone write clamps the pair before sending',
+  zoneHid.sent[0].slice(4).join(',') === '3,1,90,100',
+  zoneHid.sent[0].slice(4).join(','),
+);
 
 console.log(failures.length ? `\n${failures.length} failure(s)` : '\nall checks passed');
 process.exit(failures.length ? 1 : 0);

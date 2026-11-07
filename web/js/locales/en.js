@@ -51,9 +51,14 @@ export default {
   'live.centred': 'centred',
   'live.offCentre': 'off centre: {value}',
   'live.bumpers': 'bumpers',
-  'live.tolerance': 'centre tolerance',
+  'live.atOuter': 'reached the outer zone',
+  'live.zoneWrite': 'Write to profiles 1–4',
+  'live.zoneNeedsDevice': 'WebHID required: the sliders below write stick deadzones into profiles 1–4',
+  'live.zoneWriting': 'writing profiles 1–4: inner {inner}%, outer {outer}%…',
+  'live.zoneWritten': 'stored in every profile: inner {inner}%, outer {outer}%',
+  'live.zoneMismatch': 'read-back mismatch on pages {pages}',
   'live.rawHint':
-    'Values are read raw, without the firmware deadzone: if the stick is at rest but the dot is not centred or the axes are not highlighted, the centre is off.',
+    'Values are read raw, without the firmware deadzone: if the stick is at rest but the dot is not centred or the axes are not highlighted, the centre is off. The sliders set the stick deadzone pair and write it into all four profiles at once.',
   'live.buttonTest': 'Button test',
   'live.buttonTestHint': 'Shows what the pad actually reports to the host.',
   'live.groupSticks': 'Sticks',
@@ -113,7 +118,7 @@ export default {
 
   'profile.title': 'Profile and settings',
   'profile.hint':
-    'Byte values 0…100 straight from the profile. "Centre" is the inner deadzone, "edge" the response boundary, "anti" widens the working range. Triggers have their own section, together with clicky mode (short trigger travel).',
+    'Byte values 0…100 straight from the profile. The inner deadzone swallows jitter around the centre, the outer one is the boundary where an axis counts as fully deflected; "anti" widens the working range. Triggers have their own section, together with clicky mode (short trigger travel).',
   'profile.profile': 'Profile',
   'profile.shift': 'Shift',
   'profile.light': 'Lighting',
@@ -136,6 +141,8 @@ export default {
   'editor.on': 'on',
   'editor.clickyStart': 'actuation, %',
   'editor.clickyEnd': 'release, %',
+  'editor.deadzoneHint':
+    'The inner zone swallows jitter around the centre, the outer zone is the point where the axis already counts as fully deflected. Keep at least {gap}% between them. Values are percentages of travel.',
 
   'layout.title': 'ABXY layout',
   'layout.profile': 'profile {page}',
@@ -234,11 +241,11 @@ export default {
   'block.clicky.lt': 'Clicky LT',
   'block.clicky.rt': 'Clicky RT',
 
-  'field.enabled': 'on',
-  'field.center': 'centre',
-  'field.edge': 'edge',
-  'field.antiBegin': 'anti begin',
-  'field.antiEnd': 'anti end',
+  'field.enabled': 'zone on',
+  'field.center': 'inner, %',
+  'field.edge': 'outer, %',
+  'field.antiBegin': 'anti: start, %',
+  'field.antiEnd': 'anti: end, %',
 
   'fun.reportRate': 'Report rate',
   'fun.dpadDiagonalLock': 'D-pad diagonal lock',

@@ -3,11 +3,14 @@
 // Run: node tools/test-live.mjs
 import { startLiveView } from '../web/js/live.js';
 import { pushMotionReport, resetMotion, setMotionAvailable } from '../web/js/motion.js';
+import { setLang, t } from '../web/js/i18n.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+setLang('ru');
 
 const failures = [];
 const check = (name, cond, extra = '') => {
@@ -45,7 +48,7 @@ class El {
     this.hidden = false;
     this.style = {};
     this.dataset = {};
-    this.value = id === 'center-tol' ? '2' : '';
+    this.value = { 'zone-inner': '2', 'zone-outer': '100' }[id] ?? '';
     this.attrs = {};
     this.classList = new ClassList();
     this.listeners = new Map();
@@ -83,8 +86,10 @@ const el = (id) => {
 
 for (const id of [
   'padinfo',
-  'center-tol',
-  'center-tol-out',
+  'zone-inner',
+  'zone-outer',
+  'zone-inner-out',
+  'zone-outer-out',
   'lt-bar',
   'rt-bar',
   'lt-val',
@@ -104,6 +109,7 @@ const makeStick = (name) => {
   const figure = new El(`stick-${name}`);
   figure.dot = new El('dot');
   figure.tolerance = new El('tolerance');
+  figure.edge = new El('edge');
   figure.badge = new El('badge');
   return figure;
 };
@@ -221,6 +227,47 @@ check('статус перезаписан данными пада', !el('padinf
 doc.dispatch('visibilitychange', {});
 pump(1);
 check('перезапуск не дублирует кадры', queue.length === 1, String(queue.length));
+
+// --- deadzone pair sliders --------------------------------------------------
+
+check(
+  'rings follow the sliders',
+  ls.tolerance.getAttribute('r') === '2' && ls.edge.getAttribute('r') === '100',
+  `${ls.tolerance.getAttribute('r')}/${ls.edge.getAttribute('r')}`,
+);
+
+axis = 1;
+pump(1);
+check('full travel lights the outer ring', ls.classList.contains('edge-on'), String(ls.dot.getAttribute('cx')));
+check('badge says the outer zone is reached', ls.badge.textContent === t('live.atOuter'), ls.badge.textContent);
+
+axis = 0.5;
+pump(1);
+check('outer ring goes dark again below the threshold', !ls.classList.contains('edge-on'));
+
+// moving the inner slider past the pair must drag the outer one along
+el('zone-inner').value = '95';
+el('zone-inner').dispatch('input', { target: el('zone-inner') });
+check(
+  'sliders keep the 10% gap',
+  el('zone-outer').value === '100' && el('zone-inner-out').textContent === '90%',
+  `${el('zone-inner').value}/${el('zone-outer').value}`,
+);
+check('outer ring follows the new value', ls.edge.getAttribute('r') === '100', ls.edge.getAttribute('r'));
+
+// and lowering the outer slider pulls the inner one back
+el('zone-outer').value = '40';
+el('zone-outer').dispatch('input', { target: el('zone-outer') });
+check(
+  'lowering the outer slider moves the inner one',
+  el('zone-inner').value === '30',
+  `${el('zone-inner').value}/${el('zone-outer').value}`,
+);
+
+// the loop itself must keep the pair valid on the pad data
+axis = 0.35;
+pump(1);
+check('dot still follows the axes', ls.dot.getAttribute('cx') === '35', ls.dot.getAttribute('cx'));
 
 // --- motion panel -----------------------------------------------------------
 
