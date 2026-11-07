@@ -147,7 +147,7 @@ export default {
   'layout.title': 'Раскладка ABXY',
   'layout.profile': 'профиль {page}',
   'layout.explain':
-    'В профиле два независимых флага: 0x2c — раскладка switch для XInput, 0x2d — для режима Switch. Пад сам выбирает флаг по текущему режиму, поэтому держать отдельный «ниппонский» слот не нужно.',
+    'В профиле два независимых флага: 0x2c — раскладка switch для XInput, 0x2d — для режима Switch. Пад сам выбирает флаг по текущему режиму, поэтому отдельный слот под свитчевую раскладку не нужен.',
   'layout.xinputMode': 'Раскладка switch в XInput (PC)',
   'layout.switchMode': 'Раскладка switch в режиме Switch',
   'layout.remapsWarn':
