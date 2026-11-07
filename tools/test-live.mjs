@@ -2,6 +2,12 @@
 // loop, and rAF must never be scheduled twice from the same tick.
 // Run: node tools/test-live.mjs
 import { startLiveView } from '../web/js/live.js';
+import { pushMotionReport, resetMotion, setMotionAvailable } from '../web/js/motion.js';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const failures = [];
 const check = (name, cond, extra = '') => {
@@ -87,6 +93,12 @@ for (const id of [
   'drift-hint',
   'drift-text',
   'drift-dismiss',
+  'gyro-dot',
+  'gyro-tilt',
+  'gyro-rates',
+  'gyro-noise',
+  'gyro-g',
+  'gyro-level',
 ]) {
   el(id);
 }
@@ -212,6 +224,30 @@ check('статус перезаписан данными пада', !el('padinf
 doc.dispatch('visibilitychange', {});
 pump(1);
 check('перезапуск не дублирует кадры', queue.length === 1, String(queue.length));
+
+// --- motion panel -----------------------------------------------------------
+
+resetMotion();
+setMotionAvailable(false);
+pump(1);
+check('без WebHID метрики пустые', el('gyro-tilt').textContent === '—' && el('gyro-g').textContent === '—',
+  el('gyro-tilt').textContent);
+check('без WebHID бейдж просит подключение', el('gyro-level').textContent.length > 0,
+  el('gyro-level').textContent);
+
+const rollFrame = readFileSync(join(root, 'tools/fixtures/motion/roll.bin')).subarray(1, 64);
+setMotionAvailable(true);
+pushMotionReport(rollFrame);
+pump(1);
+check('наклон приходит из кадра', /°/.test(el('gyro-tilt').textContent), el('gyro-tilt').textContent);
+check('сила тяжести ≈ 1 g', /^1\.\d\d g$/.test(el('gyro-g').textContent), el('gyro-g').textContent);
+check('скорости в °/с', /-?\d+\.\d .*-?\d+\.\d .*-?\d+\.\d/.test(el('gyro-rates').textContent),
+  el('gyro-rates').textContent);
+check('горизонталь круга инвертирована', el('gyro-dot').getAttribute('cx') === '-39.3',
+  el('gyro-dot').getAttribute('cx'));
+check('шум покоя посчитан', /^\d+\.\d\d/.test(el('gyro-noise').textContent), el('gyro-noise').textContent);
+resetMotion();
+setMotionAvailable(false);
 
 view.stop();
 console.error = realError;

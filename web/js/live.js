@@ -31,6 +31,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
     tilt: doc.getElementById('gyro-tilt'),
     rates: doc.getElementById('gyro-rates'),
     noise: doc.getElementById('gyro-noise'),
+    g: doc.getElementById('gyro-g'),
     badge: doc.getElementById('gyro-level'),
   };
 
@@ -151,6 +152,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
       gyro.tilt.textContent = DASH;
       gyro.rates.textContent = DASH;
       gyro.noise.textContent = DASH;
+      if (gyro.g) gyro.g.textContent = DASH;
       if (gyro.badge) {
         gyro.badge.textContent = t(key);
         gyro.badge.className = 'level-badge idle';
@@ -159,7 +161,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
     if (!state.available) return clear('live.gyroNeedsDevice');
     if (!state.sample || state.stale) return clear(state.stale ? 'live.gyroStale' : 'live.gyroWaiting');
 
-    const { accel, rates, pitch, roll, tilt, noise } = state.sample;
+    const { accel, rates, pitch, roll, tilt, noise, magnitude } = state.sample;
     const unit = t('live.unitDegSec');
     // accel +X points to the pad's left, so the level's horizontal axis is flipped
     const x = Math.max(-LEVEL_RANGE, Math.min(LEVEL_RANGE, -(accel.x / ACCEL_PER_G) * LEVEL_RANGE));
@@ -169,6 +171,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
     gyro.tilt.textContent = `${signed(pitch)}° / ${signed(roll)}°`;
     gyro.rates.textContent = `${rates.yaw.toFixed(1)} ${rates.roll.toFixed(1)} ${rates.pitch.toFixed(1)} ${unit}`;
     gyro.noise.textContent = `${noise.toFixed(2)} ${unit}`;
+    if (gyro.g) gyro.g.textContent = `${(magnitude / ACCEL_PER_G).toFixed(2)} g`;
     if (gyro.badge) {
       const level = Math.abs(tilt) <= 3;
       gyro.badge.textContent = level ? t('live.gyroLevel') : t('live.gyroTilted', { degrees: tilt.toFixed(1) });

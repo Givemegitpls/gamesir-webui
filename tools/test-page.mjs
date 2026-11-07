@@ -56,7 +56,7 @@ check('stylesheet exists', existsSync(join(root, 'web/style.css')));
 const calGroups = [...html.matchAll(/data-cal-group="(\w+)"/g)].map((m) => m[1]);
 check('calibration controls sit in the live card', calGroups.join(',') === 'sticks,triggers,motion', calGroups.join(','));
 for (const id of ['cal-sticks', 'cal-triggers', 'cal-motion', 'cal-panel', 'cal-save', 'cal-cancel',
-  'gyro-dot', 'gyro-tilt', 'gyro-rates', 'gyro-noise', 'gyro-level']) {
+  'gyro-dot', 'gyro-tilt', 'gyro-rates', 'gyro-noise', 'gyro-g', 'gyro-level']) {
   check(`live card element ${id} is present`, htmlIds.has(id));
 }
 const nudgeButtons = [...html.matchAll(/data-nudge-side="(\w+)"/g)].map((m) => m[1]);

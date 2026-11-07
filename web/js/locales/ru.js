@@ -59,6 +59,7 @@ export default {
   'live.gyroTilt': 'наклон',
   'live.gyroRates': 'скорость',
   'live.gyroNoise': 'шум покоя',
+  'live.gyroGravity': 'сила тяжести',
   'live.gyroAria': 'наклон пада',
   'live.gyroHint': 'Нужен подключённый WebHID: поток 0x12 живёт на heartbeat.',
   'live.gyroNeedsDevice': 'подключите пад по WebHID',

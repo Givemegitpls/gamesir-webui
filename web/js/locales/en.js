@@ -59,6 +59,7 @@ export default {
   'live.gyroTilt': 'tilt',
   'live.gyroRates': 'rate',
   'live.gyroNoise': 'rest noise',
+  'live.gyroGravity': 'gravity',
   'live.gyroAria': 'pad tilt',
   'live.gyroHint': 'Requires WebHID: the 0x12 stream only flows with the heartbeat.',
   'live.gyroNeedsDevice': 'connect the pad over WebHID',
