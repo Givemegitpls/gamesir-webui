@@ -40,7 +40,7 @@ import {
   writeMapping,
   writePageDiff,
 } from './protocol.js';
-import { actionCount, actionLabel, actionOptions, loadActions } from './actions.js';
+import { actionCount, actionLabel, actionOptions, loadActions, searchActions } from './actions.js';
 import {
   CALIBRATION_PARTS,
   NUDGE_COUNTS,
@@ -56,6 +56,7 @@ import {
 import { pickGamepad, readInputs } from './gamepad.js';
 import { I18nError, LANGS, applyStatic, currentLang, onLangChange, setLang, t } from './i18n.js';
 import { lightEditorHtml } from './light-ui.js';
+import { mappingDetailHtml, mappingOverviewHtml } from './mapping-ui.js';
 import { startLiveView } from './live.js';
 import { buildUdevScript } from './udev.js';
 
@@ -80,6 +81,7 @@ let lightTab = 0; // which animation the lighting editor shows (UI only)
 let lightOriginal = null; // page 32 as read from the pad (independent of profiles)
 let lightDesired = null; // lighting working copy
 let lightCell = null; // { frame, zone } the palette paints into
+let mappingIndex = 0; // which pad button the mapping panel edits
 const sessionSnapshot = new Map(); // page -> bytes as they were when we connected
 
 const SNAPSHOT_PAGES = [...PROFILE_PAGES, SHIFT_PAGE];
@@ -205,26 +207,6 @@ function renderEditor() {
 `;
   };
 
-  const mappingBlock = (button, index) => {
-    const record = readMapping(desired, index);
-    const targets = record.targets
-      .map(
-        (code, slot) => `<label>${t('mapping.target', { slot: slot + 1 })}${code ? ` → ${actionLabel(code)}` : ''}
-          <select data-mapping-index="${index}" data-mapping-field="target${slot}">${actionOptions(code)}</select>
-        </label>`,
-      )
-      .join('');
-    return `<div class="block wide">
-      <h3>${t(button.labelKey)} <small>0x${mappingOffset(index).toString(16)}</small></h3>
-      <div class="fields">
-        <label>${t('mapping.turbo')} <input type="checkbox" data-mapping-index="${index}" data-mapping-field="turbo" ${record.turbo ? 'checked' : ''}></label>
-        <label>${t('mapping.turboSpeed')} <input type="number" min="0" max="255" data-mapping-index="${index}" data-mapping-field="turboSpeed" value="${record.turboSpeed}"></label>
-        <label>${t('mapping.toggle')} <input type="checkbox" data-mapping-index="${index}" data-mapping-field="toggle" ${record.toggle ? 'checked' : ''}></label>
-      </div>
-      <div class="fields">${targets}</div>
-    </div>`;
-  };
-
   const macroBlock = (item) => {
     const macro = readMacro(desired, item.base);
     const rows = macro.steps
@@ -265,16 +247,15 @@ function renderEditor() {
     { title: t('group.general'), html: generalBlock() },
     { title: t('group.sticks'), html: STICK_BLOCKS.map(deadzoneBlock).join('') },
     { title: t('group.triggers'), html: [...TRIGGER_BLOCKS.map(deadzoneBlock), ...CLICKY_TRIGGER.map(clickyBlock)].join('') },
-    {
-      title: t('group.buttons'),
-      html: MAPPING_BUTTONS.map((button, index) => mappingBlock(button, index)).join(''),
-    },
+    { title: t('group.buttons'), html: '<div class="mapping-wrap" id="mapping-wrap"></div>' },
     { title: t('group.macros'), html: MACROS.map(macroBlock).join('') },
   ];
 
   editorEl.innerHTML = groups
     .map((group) => `<h3 class="group-title">${group.title}</h3>${group.html}`)
     .join('');
+
+  renderMapping();
 
   const applyField = (input) => {
     const offset = Number(input.dataset.offset);
@@ -293,8 +274,11 @@ function renderEditor() {
       return;
     }
     if (input.dataset.mappingIndex !== undefined) {
-      input.addEventListener('input', () => applyMappingField(input));
-      input.addEventListener('change', () => applyMappingField(input));
+      // the mapping panel rebinds itself after every render
+      if (!input.closest('#mapping-wrap')) {
+        input.addEventListener('input', () => applyMappingField(input));
+        input.addEventListener('change', () => applyMappingField(input));
+      }
       return;
     }
     if (input.dataset.macro !== undefined) {
@@ -543,17 +527,119 @@ function updateLightButtons() {
 }
 
 // Mapping records keep map_en implicit: any target turns mapping on.
+const escapeText = (value) =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+function renderMapping() {
+  const wrap = editorEl.querySelector('#mapping-wrap');
+  if (!wrap || !desired) return;
+  if (mappingIndex >= MAPPING_BUTTONS.length) mappingIndex = 0;
+  wrap.innerHTML = `<div class="mapping-layout">${mappingOverviewHtml(
+    desired,
+    mappingIndex,
+  )}${mappingDetailHtml(desired, mappingIndex)}</div>`;
+  bindMapping(wrap);
+}
+
+function setMappingTarget(slot, code) {
+  updateMapping(mappingIndex, (record) => {
+    record.targets[slot] = Number(code) & 0xff;
+  });
+  renderMapping();
+}
+
+function showActionList(wrap, slot, query) {
+  const list = wrap.querySelector(`[data-mapping-list="${slot}"]`);
+  if (!list) return;
+  const items = searchActions(query, 60);
+  list.innerHTML = items.length
+    ? items
+        .map(
+          (item) => `<button type="button" class="picker-item" data-mapping-slot="${slot}" data-mapping-code="${item.code}">
+            <span class="item-label">${escapeText(item.label)}</span>
+            <span class="item-group">${escapeText(item.group)}</span>
+          </button>`,
+        )
+        .join('')
+    : `<p class="hint">${t('mapping.noMatches')}</p>`;
+  list.hidden = false;
+}
+
+function bindMapping(wrap) {
+  wrap.querySelectorAll('[data-mapping-chip]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      mappingIndex = Number(chip.dataset.mappingChip);
+      renderMapping();
+    });
+  });
+
+  wrap.querySelector('[data-mapping-reset]')?.addEventListener('click', () => {
+    updateMapping(mappingIndex, (record) => {
+      record.targets = [0, 0, 0];
+      record.turbo = false;
+      record.toggle = false;
+    });
+    renderMapping();
+    statusKey('mapping.resetDone', {}, 'ok');
+  });
+
+  wrap.querySelectorAll('[data-mapping-clear]').forEach((button) => {
+    button.addEventListener('click', () => setMappingTarget(Number(button.dataset.mappingClear), 0));
+  });
+
+  wrap.querySelectorAll('[data-mapping-index]').forEach((input) => {
+    input.addEventListener('input', () => applyMappingField(input));
+    input.addEventListener('change', () => applyMappingField(input));
+  });
+
+  wrap.querySelectorAll('[data-mapping-search]').forEach((input) => {
+    const slot = Number(input.dataset.mappingSearch);
+    input.addEventListener('focus', () => showActionList(wrap, slot, input.value));
+    input.addEventListener('input', () => showActionList(wrap, slot, input.value));
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      const list = wrap.querySelector(`[data-mapping-list="${slot}"]`);
+      if (list) list.hidden = true;
+      input.blur();
+    });
+    input.addEventListener('blur', () => {
+      const list = wrap.querySelector(`[data-mapping-list="${slot}"]`);
+      // the click on an item must land before the list disappears
+      setTimeout(() => {
+        if (list) list.hidden = true;
+      }, 150);
+    });
+  });
+
+  wrap.querySelectorAll('[data-mapping-list]').forEach((list) => {
+    // keep the input focused so the click is not lost to the blur handler
+    list.addEventListener('mousedown', (event) => event.preventDefault());
+    list.addEventListener('click', (event) => {
+      const item = event.target.closest('[data-mapping-code]');
+      if (!item) return;
+      setMappingTarget(Number(item.dataset.mappingSlot), Number(item.dataset.mappingCode));
+    });
+  });
+}
+
 function applyMappingField(input) {
   const index = Number(input.dataset.mappingIndex);
   const field = input.dataset.mappingField;
   updateMapping(index, (record) => {
     if (field === 'turbo' || field === 'toggle') record[field] = input.checked;
     else if (field === 'turboSpeed') record.turboSpeed = Number(input.value) & 0xff;
-    else if (field.startsWith('target')) {
-      const slot = Number(field.slice('target'.length));
-      record.targets[slot] = Number(input.value) & 0xff;
-    }
   });
+  if (field === 'turboSpeed') {
+    const output = input.parentElement?.querySelector('output');
+    if (output) output.textContent = input.value;
+  } else {
+    // turbo/toggle change the chip badge and the flag row
+    renderMapping();
+  }
 }
 
 function updateMapping(index, mutate) {

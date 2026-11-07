@@ -138,3 +138,22 @@ export function actionOptions(selected, { none = t('action.none') } = {}) {
 }
 
 export const actionCount = () => (table ? table.length : 0);
+
+// Free-text search over label, constant and group. The mapping editor uses it
+// instead of 48 native selects with 144 options each.
+export function searchActions(query = '', limit = 60) {
+  const locale = currentLang();
+  const needle = String(query).trim().toLowerCase();
+  const matches = [];
+  for (const entry of table ?? []) {
+    const label = labelFor(entry);
+    const group = groupFor(entry);
+    const haystack = `${label} ${entry.name ?? ''} ${entry.constant ?? ''} ${group} ${entry.code}`.toLowerCase();
+    if (needle && !haystack.includes(needle)) continue;
+    matches.push({ code: entry.code, label, group });
+  }
+  matches.sort(
+    (a, b) => a.group.localeCompare(b.group, locale) || a.label.localeCompare(b.label, locale),
+  );
+  return matches.slice(0, limit);
+}
