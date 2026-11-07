@@ -7,8 +7,13 @@
 import { createDriftWatcher } from './drift.js';
 import { isCentered, isIdle, pickGamepad, readButtons, readInputs } from './gamepad.js';
 import { onLangChange, t } from './i18n.js';
+import { ACCEL_PER_G, motionState } from './motion.js';
 
 const RANGE = 100; // viewBox units per 1.0 of axis travel
+const DASH = '—';
+const LEVEL_RANGE = 40; // viewBox units for a 1 g tilt on the gyro level
+
+const signed = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
 
 const stickLabel = (name) => t(name === 'ls' ? 'live.stickLeft' : 'live.stickRight');
 
@@ -21,6 +26,13 @@ export function startLiveView(doc = document, onMode = () => {}) {
   const ltVal = doc.getElementById('lt-val');
   const rtVal = doc.getElementById('rt-val');
   const buttonsEl = doc.getElementById('button-test');
+  const gyro = {
+    dot: doc.getElementById('gyro-dot'),
+    tilt: doc.getElementById('gyro-tilt'),
+    rates: doc.getElementById('gyro-rates'),
+    noise: doc.getElementById('gyro-noise'),
+    badge: doc.getElementById('gyro-level'),
+  };
 
   const sticks = {
     ls: mount(doc, 'ls'),
@@ -127,7 +139,45 @@ export function startLiveView(doc = document, onMode = () => {}) {
     }
   }
 
+  // Gyro/accelerometer come from the vendor key-state stream, so they need an
+  // open WebHID connection and the heartbeat; without it the group says so
+  // instead of showing stale numbers.
+  function updateGyro() {
+    if (!gyro.dot) return;
+    const state = motionState();
+    const clear = (key) => {
+      gyro.dot.setAttribute('cx', '0');
+      gyro.dot.setAttribute('cy', '0');
+      gyro.tilt.textContent = DASH;
+      gyro.rates.textContent = DASH;
+      gyro.noise.textContent = DASH;
+      if (gyro.badge) {
+        gyro.badge.textContent = t(key);
+        gyro.badge.className = 'level-badge idle';
+      }
+    };
+    if (!state.available) return clear('live.gyroNeedsDevice');
+    if (!state.sample || state.stale) return clear(state.stale ? 'live.gyroStale' : 'live.gyroWaiting');
+
+    const { accel, rates, pitch, roll, tilt, noise } = state.sample;
+    const unit = t('live.unitDegSec');
+    // accel +X points to the pad's left, so the level's horizontal axis is flipped
+    const x = Math.max(-LEVEL_RANGE, Math.min(LEVEL_RANGE, -(accel.x / ACCEL_PER_G) * LEVEL_RANGE));
+    const y = Math.max(-LEVEL_RANGE, Math.min(LEVEL_RANGE, -(accel.z / ACCEL_PER_G) * LEVEL_RANGE));
+    gyro.dot.setAttribute('cx', x.toFixed(1));
+    gyro.dot.setAttribute('cy', y.toFixed(1));
+    gyro.tilt.textContent = `${signed(pitch)}° / ${signed(roll)}°`;
+    gyro.rates.textContent = `${rates.yaw.toFixed(1)} ${rates.roll.toFixed(1)} ${rates.pitch.toFixed(1)} ${unit}`;
+    gyro.noise.textContent = `${noise.toFixed(2)} ${unit}`;
+    if (gyro.badge) {
+      const level = Math.abs(tilt) <= 3;
+      gyro.badge.textContent = level ? t('live.gyroLevel') : t('live.gyroTilted', { degrees: tilt.toFixed(1) });
+      gyro.badge.className = `level-badge${level ? '' : ' bad'}`;
+    }
+  }
+
   function tick() {
+    updateGyro();
     const found = pickGamepad(navigator.getGamepads?.() ?? []);
     if (!found) {
       if (lastKey !== null) {

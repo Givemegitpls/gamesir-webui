@@ -51,8 +51,22 @@ export default {
   'live.rawHint':
     'Values are read raw, without the firmware deadzone: if the stick is at rest but the dot is not centred or the axes are not highlighted, the centre is off.',
   'live.buttonTest': 'Button test',
-  'live.buttonTestHint':
-    'What the pad actually reports to the host is highlighted. After a remap the physical button stops arriving, which means the assignment worked. The D-pad and ABXY sit under the sticks and triggers; below them are the service buttons and anything the pad reports beyond the standard set.',
+  'live.buttonTestHint': 'Shows what the pad actually reports to the host.',
+  'live.groupSticks': 'Sticks',
+  'live.groupTriggers': 'Triggers',
+  'live.groupMotion': 'Gyro',
+  'live.calibrate': 'Calibrate',
+  'live.gyroTilt': 'tilt',
+  'live.gyroRates': 'rate',
+  'live.gyroNoise': 'rest noise',
+  'live.gyroAria': 'pad tilt',
+  'live.gyroHint': 'Requires WebHID: the 0x12 stream only flows with the heartbeat.',
+  'live.gyroNeedsDevice': 'connect the pad over WebHID',
+  'live.gyroWaiting': 'waiting for the stream',
+  'live.gyroStale': 'stream stopped — wake the pad',
+  'live.gyroLevel': 'lying flat',
+  'live.gyroTilted': 'tilted {degrees}° — put it flat',
+  'live.unitDegSec': '°/s',
   'live.dpad': 'D-pad',
   'live.dpadUp': 'D-pad up',
   'live.dpadDown': 'D-pad down',
@@ -77,7 +91,7 @@ export default {
     'Pull the LT and RT triggers all the way down, then rotate both the left and the right stick a full circle three times. Then press the A button.',
   'drift.note':
     'While calibration runs the pad must not be shaken and the sticks must stay untouched — the centre is sampled at rest.',
-  'drift.inApp': 'The same can be done right here: “Controller calibration” → “Sticks”.',
+  'drift.inApp': 'The same can be done right here: “Live state” → “Sticks” → “Calibrate”.',
 
   'cal.title': 'Controller calibration',
   'cal.intro':
@@ -106,6 +120,8 @@ export default {
   'cal.stepMotionOne': 'Place the pad flat on a level surface and do not move it.',
   'cal.stepMotionTwo': 'Wait for the countdown to end — it saves itself.',
   'cal.centerTitle': 'Stick centre offset',
+  'cal.centerShort': 'shift',
+  'cal.triggersHint': 'Full travel means three presses all the way down and back. Leave the sticks alone meanwhile.',
   'cal.centerHint':
     'A fine correction without recalibrating: every click shifts the stored centre by 32 counts. The opposite button undoes it.',
   'cal.centerDone': '{side}: centre shifted {direction}',

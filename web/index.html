@@ -26,116 +26,162 @@
 
 <main>
   <section class="card">
-    <h2><span data-i18n="live.title">Живое состояние</span> <small data-i18n="live.titleNote">(Gamepad API, прав не требует)</small></h2>
-    <p id="padinfo" class="hint">геймпад не найден</p>
-    <p id="modehint" class="hint"></p>
-    <p class="legend">
-      <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="11" height="11" rx="1.5"/><rect x="10" y="10" width="11" height="11" rx="1.5"/></svg> View</span>
-      <span class="hint" data-i18n="legend.viewAt">левая у HOME</span>
-      <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg> Menu</span>
-      <span class="hint" data-i18n="legend.menuAt">правая у HOME (☰, это Start)</span>
-      <span class="key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> M</span>
-      <span class="hint" data-i18n="legend.mAt">доп. кнопка на корпусе</span>
-    </p>
-    <div class="live">
-      <figure class="stick" data-stick="ls">
-        <svg viewBox="-110 -110 220 220" data-i18n-aria="live.stickLeft" aria-label="левый стик">
-          <circle class="ring" r="100" />
-          <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
-          <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
-          <circle class="tolerance" r="2" />
-          <circle class="dot" r="7" cx="0" cy="0" />
-        </svg>
-        <figcaption>
-          <b>LS</b>
-          <span class="coords" data-coords="ls">0.000, 0.000</span>
-          <span class="badge">центр</span>
-        </figcaption>
-      </figure>
+    <div class="card-head">
+      <div>
+        <h2><span data-i18n="live.title">Живое состояние</span> <small data-i18n="live.titleNote">(Gamepad API, прав не требует)</small></h2>
+        <p id="padinfo" class="hint">геймпад не найден</p>
+        <p id="modehint" class="hint"></p>
+      </div>
+      <label class="tol"><span data-i18n="live.tolerance">порог центра</span>
+        <input type="range" id="center-tol" min="0" max="10" step="0.5" value="2">
+        <output id="center-tol-out">2.0%</output>
+      </label>
+    </div>
 
-      <figure class="stick" data-stick="rs">
-        <svg viewBox="-110 -110 220 220" data-i18n-aria="live.stickRight" aria-label="правый стик">
-          <circle class="ring" r="100" />
-          <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
-          <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
-          <circle class="tolerance" r="2" />
-          <circle class="dot" r="7" cx="0" cy="0" />
-        </svg>
-        <figcaption>
-          <b>RS</b>
-          <span class="coords" data-coords="rs">0.000, 0.000</span>
-          <span class="badge">центр</span>
-        </figcaption>
-      </figure>
+    <div class="live-grid">
+      <section class="group" data-cal-group="sticks">
+        <div class="group-head">
+          <h3 data-i18n="live.groupSticks">Стики</h3>
+          <button id="cal-sticks" type="button" data-i18n="live.calibrate">Калибровать</button>
+        </div>
+        <div class="sticks">
+          <figure class="stick" data-stick="ls">
+            <svg viewBox="-110 -110 220 220" data-i18n-aria="live.stickLeft" aria-label="левый стик">
+              <circle class="ring" r="100" />
+              <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
+              <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
+              <circle class="tolerance" r="2" />
+              <circle class="dot" r="7" cx="0" cy="0" />
+            </svg>
+            <figcaption>
+              <b>LS</b>
+              <span class="coords" data-coords="ls">0.000, 0.000</span>
+              <span class="badge">центр</span>
+            </figcaption>
+            <div class="nudge">
+              <span data-i18n="cal.centerShort">сдвиг</span>
+              <button type="button" data-nudge-side="ls" data-nudge-dir="left" data-i18n-title="cal.nudgeLeft" data-i18n-aria="cal.nudgeLeft" title="сдвинуть центр влево" aria-label="сдвинуть центр влево">←</button>
+              <button type="button" data-nudge-side="ls" data-nudge-dir="up" data-i18n-title="cal.nudgeUp" data-i18n-aria="cal.nudgeUp" title="сдвинуть центр вверх" aria-label="сдвинуть центр вверх">↑</button>
+              <button type="button" data-nudge-side="ls" data-nudge-dir="down" data-i18n-title="cal.nudgeDown" data-i18n-aria="cal.nudgeDown" title="сдвинуть центр вниз" aria-label="сдвинуть центр вниз">↓</button>
+              <button type="button" data-nudge-side="ls" data-nudge-dir="right" data-i18n-title="cal.nudgeRight" data-i18n-aria="cal.nudgeRight" title="сдвинуть центр вправо" aria-label="сдвинуть центр вправо">→</button>
+            </div>
+          </figure>
 
-      <div class="triggers">
-        <div class="bars">
-          <div class="bar-v">
-            <div class="track"><span id="lt-bar"></span></div>
-            <em>LT <b id="lt-val">0.00</b></em>
-          </div>
-          <div class="bar-v">
-            <div class="track"><span id="rt-bar"></span></div>
-            <em>RT <b id="rt-val">0.00</b></em>
-          </div>
+          <figure class="stick" data-stick="rs">
+            <svg viewBox="-110 -110 220 220" data-i18n-aria="live.stickRight" aria-label="правый стик">
+              <circle class="ring" r="100" />
+              <line class="axis axis-h" x1="-100" y1="0" x2="100" y2="0" />
+              <line class="axis axis-v" x1="0" y1="-100" x2="0" y2="100" />
+              <circle class="tolerance" r="2" />
+              <circle class="dot" r="7" cx="0" cy="0" />
+            </svg>
+            <figcaption>
+              <b>RS</b>
+              <span class="coords" data-coords="rs">0.000, 0.000</span>
+              <span class="badge">центр</span>
+            </figcaption>
+            <div class="nudge">
+              <span data-i18n="cal.centerShort">сдвиг</span>
+              <button type="button" data-nudge-side="rs" data-nudge-dir="left" data-i18n-title="cal.nudgeLeft" data-i18n-aria="cal.nudgeLeft" title="сдвинуть центр влево" aria-label="сдвинуть центр влево">←</button>
+              <button type="button" data-nudge-side="rs" data-nudge-dir="up" data-i18n-title="cal.nudgeUp" data-i18n-aria="cal.nudgeUp" title="сдвинуть центр вверх" aria-label="сдвинуть центр вверх">↑</button>
+              <button type="button" data-nudge-side="rs" data-nudge-dir="down" data-i18n-title="cal.nudgeDown" data-i18n-aria="cal.nudgeDown" title="сдвинуть центр вниз" aria-label="сдвинуть центр вниз">↓</button>
+              <button type="button" data-nudge-side="rs" data-nudge-dir="right" data-i18n-title="cal.nudgeRight" data-i18n-aria="cal.nudgeRight" title="сдвинуть центр вправо" aria-label="сдвинуть центр вправо">→</button>
+            </div>
+          </figure>
         </div>
-        <div class="bumpers" data-i18n-aria="live.bumpers" aria-label="бамперы">
-          <span class="press" data-button="4" title="LB">LB</span>
-          <span class="press" data-button="5" title="RB">RB</span>
-        </div>
-        <label class="tol"><span data-i18n="live.tolerance">порог центра</span>
-          <input type="range" id="center-tol" min="0" max="10" step="0.5" value="2">
-          <output id="center-tol-out">2.0%</output>
-        </label>
-        <p class="hint" data-i18n="live.rawHint">
-          Значения читаются сырыми, без мёртвой зоны прошивки: если стик стоит, а точка не в
-          центре или оси не подсвечиваются — центр сбит.
+        <p class="hint" data-i18n="cal.centerHint">
+          Точечная поправка без перекалибровки: каждый клик сдвигает сохранённый центр на 32 отсчёта.
+          Кнопка в обратную сторону возвращает всё назад.
         </p>
+      </section>
+
+      <section class="group" data-cal-group="triggers">
+        <div class="group-head">
+          <h3 data-i18n="live.groupTriggers">Курки</h3>
+          <button id="cal-triggers" type="button" data-i18n="live.calibrate">Калибровать</button>
+        </div>
+        <div class="triggers">
+          <div class="bars">
+            <div class="bar-v">
+              <div class="track"><span id="lt-bar"></span></div>
+              <em>LT <b id="lt-val">0.00</b></em>
+            </div>
+            <div class="bar-v">
+              <div class="track"><span id="rt-bar"></span></div>
+              <em>RT <b id="rt-val">0.00</b></em>
+            </div>
+          </div>
+          <div class="bumpers" data-i18n-aria="live.bumpers" aria-label="бамперы">
+            <span class="press" data-button="4" title="LB">LB</span>
+            <span class="press" data-button="5" title="RB">RB</span>
+          </div>
+        </div>
+        <p class="hint" data-i18n="cal.triggersHint">
+          Полный ход — три нажатия до упора и обратно. Стики при этом не трогать.
+        </p>
+      </section>
+
+      <div class="live-side">
+        <section class="group" data-cal-group="motion">
+          <div class="group-head">
+            <h3 data-i18n="live.groupMotion">Гироскоп</h3>
+            <button id="cal-motion" type="button" data-i18n="live.calibrate">Калибровать</button>
+          </div>
+          <div class="gyro">
+            <div class="level">
+              <svg viewBox="-60 -60 120 120" data-i18n-aria="live.gyroAria" aria-label="наклон пада">
+                <circle class="ring" r="56" />
+                <line class="cross" x1="-56" y1="0" x2="56" y2="0" />
+                <line class="cross" x1="0" y1="-56" x2="0" y2="56" />
+                <circle class="core" r="9" />
+                <circle class="dot" id="gyro-dot" r="5" cx="0" cy="0" />
+              </svg>
+            </div>
+            <dl class="metrics">
+              <div><dt data-i18n="live.gyroTilt">наклон</dt><dd id="gyro-tilt">—</dd></div>
+              <div><dt data-i18n="live.gyroRates">скорость</dt><dd id="gyro-rates">—</dd></div>
+              <div><dt data-i18n="live.gyroNoise">шум покоя</dt><dd id="gyro-noise">—</dd></div>
+            </dl>
+          </div>
+          <p class="level-badge idle" id="gyro-level" data-i18n="live.gyroNeedsDevice">подключите пад по WebHID</p>
+          <p class="hint" data-i18n="live.gyroHint">
+            Метрики идут из потока 0x12: нужен подключённый WebHID и heartbeat. Без прав движения нет.
+          </p>
+        </section>
+
+        <section class="group">
+          <div class="group-head">
+            <h3 data-i18n="live.buttonTest">Тест кнопок</h3>
+          </div>
+          <p class="hint" data-i18n="live.buttonTestHint">
+            Подсвечивается то, что пад реально отдаёт хосту: после ремапа физическая кнопка перестаёт приходить.
+          </p>
+          <div class="test-row">
+            <div class="pad-cross" data-cross="dpad" data-i18n-aria="live.dpad" aria-label="крестовина">
+              <span class="press up" data-button="12" data-i18n-title="live.dpadUp" title="крестовина вверх">↑</span>
+              <span class="press left" data-button="14" data-i18n-title="live.dpadLeft" title="крестовина влево">←</span>
+              <span class="press right" data-button="15" data-i18n-title="live.dpadRight" title="крестовина вправо">→</span>
+              <span class="press down" data-button="13" data-i18n-title="live.dpadDown" title="крестовина вниз">↓</span>
+            </div>
+
+            <div id="button-test" class="presses"></div>
+
+            <div class="pad-cross" data-cross="face" data-i18n-aria="live.faceButtons" aria-label="кнопки ABXY">
+              <span class="press up" data-button="3" title="Y">Y</span>
+              <span class="press left" data-button="2" title="X">X</span>
+              <span class="press right" data-button="1" title="B">B</span>
+              <span class="press down" data-button="0" title="A">A</span>
+            </div>
+          </div>
+          <p class="legend">
+            <span><b>View</b> <span class="hint" data-i18n="legend.viewAt">левая у HOME</span></span>
+            <span><b>Menu</b> <span class="hint" data-i18n="legend.menuAt">правая у HOME (☰, это Start)</span></span>
+            <span><b>M</b> <span class="hint" data-i18n="legend.mAt">доп. кнопка на корпусе</span></span>
+          </p>
+        </section>
       </div>
     </div>
 
-    <div id="drift-hint" class="drift" hidden>
-      <div id="drift-text"></div>
-      <button id="drift-dismiss" type="button" data-i18n="drift.dismiss">Скрыть на 5 минут</button>
-    </div>
-
-    <h3 class="group-title" data-i18n="live.buttonTest">Тест кнопок</h3>
-    <p class="hint" data-i18n="live.buttonTestHint">
-      Подсвечивается то, что пад реально отдаёт хосту. После ремапа физическая кнопка перестаёт
-      приходить — значит назначение сработало. Крестовина и ABXY — под стиками и курками,
-      ниже — служебные кнопки и всё, что пад отдаёт сверх стандартного.
-    </p>
-    <div class="pad-row">
-      <div class="pad-cross" data-cross="dpad" data-i18n-aria="live.dpad" aria-label="крестовина">
-        <span class="press up" data-button="12" data-i18n-title="live.dpadUp" title="крестовина вверх">↑</span>
-        <span class="press left" data-button="14" data-i18n-title="live.dpadLeft" title="крестовина влево">←</span>
-        <span class="press right" data-button="15" data-i18n-title="live.dpadRight" title="крестовина вправо">→</span>
-        <span class="press down" data-button="13" data-i18n-title="live.dpadDown" title="крестовина вниз">↓</span>
-      </div>
-
-
-      <div class="pad-cross" data-cross="face" data-i18n-aria="live.faceButtons" aria-label="кнопки ABXY">
-        <span class="press up" data-button="3" title="Y">Y</span>
-        <span class="press left" data-button="2" title="X">X</span>
-        <span class="press right" data-button="1" title="B">B</span>
-        <span class="press down" data-button="0" title="A">A</span>
-      </div>
-    </div>
-    <div id="button-test" class="presses"></div>
-  </section>
-
-  <section class="card" id="calibration">
-    <h2 data-i18n="cal.title">Калибровка пада</h2>
-    <p class="hint" data-i18n-html="cal.intro">
-      Гироскоп, стики и курки калибруются в самом паде: команда уходит по вендорскому каналу,
-      результат сохраняется в прошивке и переживает переподключение. Прочитать калибровку обратно
-      нельзя — откат возможен только повторной калибровкой.
-    </p>
-    <div class="row">
-      <button id="cal-sticks" type="button" data-i18n="cal.sticks">Стики</button>
-      <button id="cal-triggers" type="button" data-i18n="cal.triggers">Курки</button>
-      <button id="cal-motion" type="button" data-i18n="cal.motion">Гироскоп</button>
-    </div>
     <div id="cal-panel" class="cal-panel" hidden>
       <h3 id="cal-title"></h3>
       <ol id="cal-steps"></ol>
@@ -146,27 +192,16 @@
       </div>
       <p id="cal-status" class="hint"></p>
     </div>
-    <h3 data-i18n="cal.centerTitle">Сдвиг центра стика</h3>
-    <p class="hint" data-i18n-html="cal.centerHint">
-      Точечная поправка без перекалибровки: каждый клик сдвигает сохранённый центр на 32 отсчёта.
-      Кнопка в обратную сторону возвращает всё назад.
-    </p>
-    <div class="cal-nudges">
-      <div class="cal-nudge" data-nudge="ls">
-        <b>LS</b>
-        <button type="button" class="up" data-nudge-side="ls" data-nudge-dir="up" data-i18n-title="cal.nudgeUp" data-i18n-aria="cal.nudgeUp" title="сдвинуть центр вверх" aria-label="сдвинуть центр вверх">↑</button>
-        <button type="button" class="left" data-nudge-side="ls" data-nudge-dir="left" data-i18n-title="cal.nudgeLeft" data-i18n-aria="cal.nudgeLeft" title="сдвинуть центр влево" aria-label="сдвинуть центр влево">←</button>
-        <button type="button" class="right" data-nudge-side="ls" data-nudge-dir="right" data-i18n-title="cal.nudgeRight" data-i18n-aria="cal.nudgeRight" title="сдвинуть центр вправо" aria-label="сдвинуть центр вправо">→</button>
-        <button type="button" class="down" data-nudge-side="ls" data-nudge-dir="down" data-i18n-title="cal.nudgeDown" data-i18n-aria="cal.nudgeDown" title="сдвинуть центр вниз" aria-label="сдвинуть центр вниз">↓</button>
-      </div>
-      <div class="cal-nudge" data-nudge="rs">
-        <b>RS</b>
-        <button type="button" class="up" data-nudge-side="rs" data-nudge-dir="up" data-i18n-title="cal.nudgeUp" data-i18n-aria="cal.nudgeUp" title="сдвинуть центр вверх" aria-label="сдвинуть центр вверх">↑</button>
-        <button type="button" class="left" data-nudge-side="rs" data-nudge-dir="left" data-i18n-title="cal.nudgeLeft" data-i18n-aria="cal.nudgeLeft" title="сдвинуть центр влево" aria-label="сдвинуть центр влево">←</button>
-        <button type="button" class="right" data-nudge-side="rs" data-nudge-dir="right" data-i18n-title="cal.nudgeRight" data-i18n-aria="cal.nudgeRight" title="сдвинуть центр вправо" aria-label="сдвинуть центр вправо">→</button>
-        <button type="button" class="down" data-nudge-side="rs" data-nudge-dir="down" data-i18n-title="cal.nudgeDown" data-i18n-aria="cal.nudgeDown" title="сдвинуть центр вниз" aria-label="сдвинуть центр вниз">↓</button>
-      </div>
+
+    <div id="drift-hint" class="drift" hidden>
+      <div id="drift-text"></div>
+      <button id="drift-dismiss" type="button" data-i18n="drift.dismiss">Скрыть на 5 минут</button>
     </div>
+
+    <p class="hint foot" data-i18n="live.rawHint">
+      Значения читаются сырыми, без мёртвой зоны прошивки: если стик стоит, а точка не в
+      центре или оси не подсвечиваются — центр сбит.
+    </p>
   </section>
 
   <section class="card" id="lighting">

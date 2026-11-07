@@ -52,17 +52,19 @@ check('copy-all button is present', htmlIds.has('udev-copy-all'));
 check('diagnostics button is present', htmlIds.has('diagnose'));
 check('stylesheet exists', existsSync(join(root, 'web/style.css')));
 
-// calibration section: the buttons that start a run, the panel it fills in, and
-// the manual centre nudge must all be present in the markup.
-check('calibration section is present', htmlIds.has('calibration'));
-for (const id of ['cal-sticks', 'cal-triggers', 'cal-motion', 'cal-panel', 'cal-save', 'cal-cancel']) {
-  check(`calibration element ${id} is present`, htmlIds.has(id));
+// calibration lives inside the live card, next to the axes it applies to
+const calGroups = [...html.matchAll(/data-cal-group="(\w+)"/g)].map((m) => m[1]);
+check('calibration controls sit in the live card', calGroups.join(',') === 'sticks,triggers,motion', calGroups.join(','));
+for (const id of ['cal-sticks', 'cal-triggers', 'cal-motion', 'cal-panel', 'cal-save', 'cal-cancel',
+  'gyro-dot', 'gyro-tilt', 'gyro-rates', 'gyro-noise', 'gyro-level']) {
+  check(`live card element ${id} is present`, htmlIds.has(id));
 }
 const nudgeButtons = [...html.matchAll(/data-nudge-side="(\w+)"/g)].map((m) => m[1]);
 check('stick centre nudge has four buttons per stick',
   nudgeButtons.filter((s) => s === 'ls').length === 4 && nudgeButtons.filter((s) => s === 'rs').length === 4,
   nudgeButtons.join(','));
 check('calibration module is imported by the UI', readFileSync(join(root, 'web/js/main.js'), 'utf8').includes("from './calibration.js'"));
+check('motion module is imported by the UI', readFileSync(join(root, 'web/js/main.js'), 'utf8').includes("from './motion.js'"));
 
 // templates must be balanced - a missing </div> silently breaks the layout
 const TAGS = ['div', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'span', 'select', 'button'];
@@ -97,7 +99,7 @@ check(
   'highlight rule is global too',
   /(^|\n)\.press\.on \{/.test(readFileSync(join(root, 'web/style.css'), 'utf8')),
 );
-check('crosses sit in their own row', html.includes('class="pad-row"'));
+check('crosses sit in the button-test row', html.includes('class="test-row"'));
 check('crosses are styled as grids', /\.pad-cross \{[^}]*grid-template-columns/.test(readFileSync(join(root, 'web/style.css'), 'utf8')));
 check('live view drives badges by index', readFileSync(join(root, 'web/js/live.js'), 'utf8').includes('[data-button]'));
 

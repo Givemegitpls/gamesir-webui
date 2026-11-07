@@ -61,6 +61,7 @@ import { I18nError, LANGS, applyStatic, currentLang, onLangChange, setLang, t } 
 import { lightEditorHtml } from './light-ui.js';
 import { mappingDetailHtml, mappingOverviewHtml } from './mapping-ui.js';
 import { startLiveView } from './live.js';
+import { pushMotionReport, setMotionAvailable } from './motion.js';
 import { buildUdevScript } from './udev.js';
 
 const logEl = document.getElementById('log');
@@ -1117,6 +1118,10 @@ async function startCalibration(part) {
     motionLeft: CAL_MOTION_MS,
     saving: false,
   };
+  // The shared panel lives in the card; move it into the group it belongs to so
+  // steps and "save" appear next to the axes being calibrated.
+  const group = document.querySelector(`[data-cal-group="${part}"]`);
+  if (group && calPanel) group.append(calPanel);
   renderCalPanel();
   try {
     await hid.calibrate(calibrationStartArgs(part));
@@ -1212,6 +1217,11 @@ document.getElementById('connect').addEventListener('click', async () => {
     log(`device: ${hid.info}`);
     document.getElementById('diagnose').disabled = false;
     log(`collections: ${JSON.stringify(hid.describe().collections)}`);
+    // Motion (gyro/accelerometer) rides on the same 1 kHz key-state stream as the
+    // buttons, and that stream only flows while the host sends the heartbeat.
+    hid.subscribeKeyFrames(pushMotionReport);
+    hid.startHeartbeat();
+    setMotionAvailable(true);
     if (!(await hid.ping())) {
       statusKey('status.configSilent', {}, 'warn');
       log('config channel does not answer: press "Diagnose" and share the output');

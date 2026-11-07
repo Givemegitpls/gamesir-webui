@@ -35,6 +35,20 @@ export class GameSirHid {
   constructor(device) {
     this.device = device;
     this.keyFrames = 0;
+    this.keyListeners = new Set();
+    this.keyFrame = new Uint8Array(63);
+    this.heartbeat = 0;
+    this.writeChain = Promise.resolve();
+    // The 1 kHz key-state stream also carries gyroscope and accelerometer data;
+    // one persistent listener is cheaper than adding a temporary one per command.
+    this.onInputReport = (event) => {
+      if (event.reportId !== REPORT_KEYS_IN) return;
+      this.keyFrames += 1;
+      const data = new Uint8Array(event.data.buffer, event.data.byteOffset ?? 0, event.data.byteLength);
+      this.keyFrame.set(data.subarray(0, this.keyFrame.length));
+      for (const listener of this.keyListeners) listener(this.keyFrame);
+    };
+    device.addEventListener('inputreport', this.onInputReport);
   }
 
   static get supported() {
@@ -72,7 +86,45 @@ export class GameSirHid {
   }
 
   async close() {
+    this.stopHeartbeat();
+    this.keyListeners.clear();
+    this.device.removeEventListener?.('inputreport', this.onInputReport);
     if (this.device.opened) await this.device.close();
+  }
+
+  // Serialise all writes: concurrent sendReport calls from the heartbeat and a
+  // config command can fail on WebHID.
+  queueWrite(payload) {
+    const run = this.writeChain.then(() => this.device.sendReport(REPORT_OUT, payload));
+    this.writeChain = run.then(
+      () => {},
+      () => {},
+    );
+    return run;
+  }
+
+  // The pad stops the 0x12 stream (sticks, buttons, motion) when the host goes
+  // quiet, so a heartbeat keeps it flowing while the page is connected.
+  startHeartbeat(interval = 300) {
+    if (this.heartbeat) return;
+    this.heartbeat = setInterval(() => {
+      const payload = new Uint8Array(63);
+      payload[0] = CMD.heartbeat;
+      this.queueWrite(payload).catch(() => this.stopHeartbeat());
+    }, interval);
+    const payload = new Uint8Array(63);
+    payload[0] = CMD.heartbeat;
+    this.queueWrite(payload).catch(() => this.stopHeartbeat());
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = 0;
+  }
+
+  subscribeKeyFrames(listener) {
+    this.keyListeners.add(listener);
+    return () => this.keyListeners.delete(listener);
   }
 
   // Send a command and collect config replies (report id 0x10) for `window` ms.
@@ -84,8 +136,6 @@ export class GameSirHid {
     const listener = (event) => {
       if (event.reportId === REPORT_CFG_IN) {
         frames.push(new Uint8Array(event.data.buffer.slice(0)));
-      } else if (event.reportId === REPORT_KEYS_IN) {
-        this.keyFrames += 1;
       }
     };
     this.device.addEventListener('inputreport', listener);
@@ -94,7 +144,7 @@ export class GameSirHid {
       payload[0] = cmd;
       payload.set(args, 1);
       try {
-        await this.device.sendReport(REPORT_OUT, payload);
+        await this.queueWrite(payload);
       } catch (err) {
         throw new DeviceGoneError(t('error.writeFailed', { message: err.message }));
       }
