@@ -4,8 +4,7 @@
 // applied, so a stale centre (stick reports 0.08 at rest) is visible. The
 // crosshair highlights when the dot sits inside the small centre tolerance.
 
-import { createDriftWatcher } from './drift.js';
-import { isCentered, isIdle, pickGamepad, readButtons, readInputs } from './gamepad.js';
+import { isCentered, pickGamepad, readButtons, readInputs } from './gamepad.js';
 import { onLangChange, t } from './i18n.js';
 import { ACCEL_PER_G, motionState } from './motion.js';
 
@@ -14,8 +13,6 @@ const DASH = '—';
 const LEVEL_RANGE = 40; // viewBox units for a 1 g tilt on the gyro level
 
 const signed = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
-
-const stickLabel = (name) => t(name === 'ls' ? 'live.stickLeft' : 'live.stickRight');
 
 export function startLiveView(doc = document, onMode = () => {}) {
   const info = doc.getElementById('padinfo');
@@ -69,40 +66,6 @@ export function startLiveView(doc = document, onMode = () => {}) {
     const product = meta.productId === null ? '?' : `0x${meta.productId.toString(16)}`;
     return `${meta.name} | ${vendor}:${product} | ${meta.mode.label} | mapping: ${pad.mapping}`;
   };
-
-  // Stuck-centre hint
-  const watcher = createDriftWatcher();
-  const driftHint = doc.getElementById('drift-hint');
-  const driftText = doc.getElementById('drift-text');
-  const SNOOZE_MS = 5 * 60 * 1000;
-  const snoozeUntil = { ls: 0, rs: 0 };
-  let lastStates = null;
-  let lastDrift = null; // keeps the visible hint re-renderable after a language switch
-
-  doc.getElementById('drift-dismiss')?.addEventListener('click', () => {
-    const now = performance.now();
-    for (const name of ['ls', 'rs']) if (lastStates?.[name]?.drifting) snoozeUntil[name] = now + SNOOZE_MS;
-    if (driftHint) driftHint.hidden = true;
-  });
-
-  function updateDriftHint(input, tolerance) {
-    const now = performance.now();
-    const states = watcher.update(input, { idle: lastPad ? isIdle(lastPad, input) : false, tolerance }, now);
-    lastStates = states;
-    if (!driftHint) return;
-    const suspect = ['ls', 'rs'].find(
-      (name) => (states[name].drifting || states[name].hold) && now > snoozeUntil[name],
-    );
-    if (!suspect) {
-      driftHint.hidden = true;
-      lastDrift = null;
-      return;
-    }
-    const { magnitude, steadyFor } = states[suspect];
-    lastDrift = { stick: suspect, magnitude, steadyFor };
-    driftText.innerHTML = driftHtml(suspect, magnitude, steadyFor);
-    driftHint.hidden = false;
-  }
 
   let lastPad = null;
   // Badges are laid out like the controller body: the two crosses and the bumpers
@@ -194,7 +157,6 @@ export function startLiveView(doc = document, onMode = () => {}) {
           if (stick.badge) stick.badge.textContent = '';
         }
       }
-      if (driftHint) driftHint.hidden = true;
       return;
     }
 
@@ -237,7 +199,6 @@ export function startLiveView(doc = document, onMode = () => {}) {
     rtBar.style.height = `${(input.rt * 100).toFixed(0)}%`;
     ltVal.textContent = input.lt.toFixed(2);
     rtVal.textContent = input.rt.toFixed(2);
-    updateDriftHint(input, tol);
   }
 
   // A frame that throws used to kill the loop for good: requestAnimationFrame was
@@ -310,9 +271,6 @@ export function startLiveView(doc = document, onMode = () => {}) {
       statusText = describePad(lastMeta, lastPad);
       info.textContent = statusText;
     }
-    if (lastDrift && driftText && driftHint && !driftHint.hidden) {
-      driftText.innerHTML = driftHtml(lastDrift.stick, lastDrift.magnitude, lastDrift.steadyFor);
-    }
   });
 
   function start() {
@@ -333,29 +291,6 @@ export function startLiveView(doc = document, onMode = () => {}) {
       doc.removeEventListener?.('visibilitychange', onVisibility);
     },
   };
-}
-
-// Full calibration guide, shown only when a stick really sits off centre.
-// Wording follows the printed manual ("stick and trigger calibration").
-function driftHtml(stick, magnitude, steadyFor) {
-  return `
-    <p class="drift-reason">
-      ${t('drift.reason', {
-        stick: stickLabel(stick),
-        magnitude: magnitude.toFixed(3),
-        seconds: (steadyFor / 1000).toFixed(1),
-      })}
-    </p>
-    <div class="drift-body">
-      <strong>${t('drift.title')}</strong>
-      <ol>
-        <li>${t('drift.step1')}</li>
-        <li>${t('drift.step2')}</li>
-        <li>${t('drift.step3')}</li>
-      </ol>
-      <p class="hint">${t('drift.note')}</p>
-      <p class="hint">${t('drift.inApp')}</p>
-    </div>`;
 }
 
 function mount(doc, name) {

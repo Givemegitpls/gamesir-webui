@@ -46,7 +46,6 @@ import {
 import { actionCount, actionLabel, actionOptions, loadActions, searchActions } from './actions.js';
 import {
   CALIBRATION_PARTS,
-  NUDGE_COUNTS,
   STICK_SIDES,
   TRIGGER_PASSES,
   TRIGGER_SIDES,
@@ -54,7 +53,6 @@ import {
   calibrationFinishArgs,
   calibrationStartArgs,
   createCoverage,
-  stickCenterArgs,
 } from './calibration.js';
 import { pickGamepad, readInputs } from './gamepad.js';
 import { I18nError, LANGS, applyStatic, currentLang, onLangChange, setLang, t } from './i18n.js';
@@ -999,13 +997,6 @@ const CAL_STEPS = {
   triggers: ['cal.stepTriggersOne', 'cal.stepTriggersTwo'],
   motion: ['cal.stepMotionOne', 'cal.stepMotionTwo'],
 };
-const CAL_DIRECTION_KEYS = {
-  up: 'cal.nudgeUp',
-  left: 'cal.nudgeLeft',
-  right: 'cal.nudgeRight',
-  down: 'cal.nudgeDown',
-};
-
 const calPanel = document.getElementById('cal-panel');
 const calTitleEl = document.getElementById('cal-title');
 const calStepsEl = document.getElementById('cal-steps');
@@ -1170,28 +1161,6 @@ async function abortCalibration(silent = false) {
   }
 }
 
-async function nudgeCenter(side, direction) {
-  if (!hid || !hid.opened) {
-    statusKey('cal.needDevice', {}, 'warn');
-    return;
-  }
-  try {
-    const frames = await hid.nudgeStickCenter(stickCenterArgs(side, direction, NUDGE_COUNTS));
-    const ack = frames.find((frame) => frame[0] === 0xe3);
-    const ok = Boolean(ack) && ack[1] === 0;
-    log(
-      `stick centre ${side} ${direction}: ${NUDGE_COUNTS} counts, ack ${ack ? `0x${ack[1].toString(16)}` : 'none'}`,
-    );
-    statusKey(
-      ok ? 'cal.centerDone' : 'cal.centerNoAck',
-      { side: side.toUpperCase(), direction: t(CAL_DIRECTION_KEYS[direction]) },
-      ok ? 'ok' : 'warn',
-    );
-  } catch (err) {
-    showError(err);
-  }
-}
-
 for (const [id, part] of [
   ['cal-sticks', 'sticks'],
   ['cal-triggers', 'triggers'],
@@ -1203,11 +1172,6 @@ for (const [id, part] of [
 }
 calSaveBtn?.addEventListener('click', () => finishCalibration().catch((err) => showError(err)));
 calCancelBtn?.addEventListener('click', () => abortCalibration().catch((err) => showError(err)));
-for (const button of document.querySelectorAll('[data-nudge-side]')) {
-  button.addEventListener('click', () => {
-    nudgeCenter(button.dataset.nudgeSide, button.dataset.nudgeDir).catch((err) => showError(err));
-  });
-}
 
 document.getElementById('connect').addEventListener('click', async () => {
   try {

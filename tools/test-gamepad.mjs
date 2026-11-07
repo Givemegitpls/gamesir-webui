@@ -75,7 +75,6 @@ for (const c of cases) {
 check('xinput is configurable', describeMode(0x3537, 0x100b).configurable === true);
 check('ds4 is not configurable', describeMode(0x054c, 0x09cc).configurable === false);
 check('ds4 hint mentions View + Menu', /View \+ Menu/.test(describeMode(0x054c, 0x09cc).hint));
-
 // device picker preference: XInput wins over a DS4 pad
 const picked = pickGamepad([
   { id: '054c-09cc-Wireless Controller', mapping: 'standard', axes: [], buttons: [] },

@@ -38,6 +38,10 @@ export default {
   'status.profileActivated': 'profile {page} is now active on the pad',
   'status.switchFailed': 'switching the profile: {message}',
   'status.copyFailed': 'copying the profile: {message}',
+  'guard.unknownModel':
+    'Model {product} is not a Cyclone 2: writing, calibration and lighting are disabled. The live view and diagnostics keep working.',
+  'guard.readOnly': 'writing is disabled for this model: the Cyclone 2 settings do not apply to it',
+
 
   'live.title': 'Live state',
   'live.titleNote': '(Gamepad API, no permissions needed)',
@@ -81,22 +85,7 @@ export default {
   'legend.menuAt': 'right of HOME (☰, this is Start)',
   'legend.mAt': 'extra button on the shell',
 
-  'drift.dismiss': 'Hide for 5 minutes',
-  'drift.reason': '{stick} does not return to centre: {magnitude}, unchanged for {seconds} s.',
-  'drift.title': 'Stick and trigger calibration',
-  'drift.step1':
-    'Press and hold the View button (two squares) + the Menu button (☰) + the Home button until the Home indicator starts blinking white slowly.',
-  'drift.step2':
-    'Do not touch the LT and RT triggers or the left and right sticks. Press the A button — the Home indicator turns off.',
-  'drift.step3':
-    'Pull the LT and RT triggers all the way down, then rotate both the left and the right stick a full circle three times. Then press the A button.',
-  'drift.note':
-    'While calibration runs the pad must not be shaken and the sticks must stay untouched — the centre is sampled at rest.',
-  'drift.inApp': 'The same can be done right here: “Live state” → “Sticks” → “Calibrate”.',
 
-  'cal.title': 'Controller calibration',
-  'cal.intro':
-    'The gyro, sticks and triggers are calibrated inside the pad: the command goes over the vendor channel, the result is stored in firmware and survives a reconnect. The calibration cannot be read back — the only way back is calibrating again.',
   'cal.sticks': 'Sticks',
   'cal.triggers': 'Triggers',
   'cal.motion': 'Gyro',
@@ -120,17 +109,7 @@ export default {
   'cal.stepTriggersTwo': 'Gently press LT and RT all the way down and release, three times.',
   'cal.stepMotionOne': 'Place the pad flat on a level surface and do not move it.',
   'cal.stepMotionTwo': 'Wait for the countdown to end — it saves itself.',
-  'cal.centerTitle': 'Stick centre offset',
-  'cal.centerShort': 'shift',
   'cal.triggersHint': 'Full travel means three presses all the way down and back. Leave the sticks alone meanwhile.',
-  'cal.centerHint':
-    'A fine correction without recalibrating: every click shifts the stored centre by 32 counts. The opposite button undoes it.',
-  'cal.centerDone': '{side}: centre shifted {direction}',
-  'cal.centerNoAck': '{side}: the pad did not confirm the shift {direction}',
-  'cal.nudgeUp': 'up',
-  'cal.nudgeLeft': 'left',
-  'cal.nudgeRight': 'right',
-  'cal.nudgeDown': 'down',
 
   'profile.title': 'Profile and settings',
   'profile.hint':

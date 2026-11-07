@@ -22,7 +22,6 @@ export const CMD = {
   switchProfile: 0x07,
   firmware: 0x09,
   currentProfile: 0x0b,
-  stickCenter: 0xe2,
   heartbeat: 0xf2,
   calibrate: 0xfe,
 };
@@ -83,6 +82,10 @@ export class GameSirHid {
 
   get opened() {
     return Boolean(this.device.opened);
+  }
+
+  get productId() {
+    return this.device.productId;
   }
 
   async close() {
@@ -179,12 +182,6 @@ export class GameSirHid {
   // Args are built by web/js/calibration.js, which knows the part bits.
   async calibrate([calType, partBits] = []) {
     return this.command(CMD.calibrate, [calType, partBits], 150);
-  }
-
-  // Manual stick-centre correction (0xE2): shifts the stored centre by `counts`
-  // raw axis units. The pad answers 0xE3, whose third byte is 0 on success.
-  async nudgeStickCenter([side, direction, hi, lo] = []) {
-    return this.command(CMD.stickCenter, [side, direction, hi, lo], 200);
   }
 
   // Inspect what the browser thinks this device is: collections, usage pages,

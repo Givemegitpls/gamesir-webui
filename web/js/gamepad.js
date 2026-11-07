@@ -14,6 +14,7 @@ export const VENDOR_NINTENDO = 0x057e;
 // product id -> what the pad is
 const GAMESIR_PRODUCTS = {
   0x100b: 'Xbox 360 Controller for Windows',
+  0x1053: 'GameSir-Cyclone 2 (wired)',
   0x0575: 'GameSir-Cyclone 2',
   0x101d: 'config mode',
   0x100e: 'GameSir device',
@@ -133,12 +134,6 @@ export function readInputs(pad) {
 
 export const isCentered = ({ x, y }, tolerance) =>
   Math.abs(x) <= tolerance && Math.abs(y) <= tolerance;
-
-// The pad counts as untouched when no button is held and both triggers are released.
-export function isIdle(pad, inputs) {
-  const anyButton = Array.from(pad.buttons ?? []).some((b) => b?.pressed);
-  return !anyButton && inputs.lt < 0.02 && inputs.rt < 0.02;
-}
 
 // Standard-mapping button indices -> label. Used by the live button test: after a
 // remap the physical button stops reporting, so its badge simply stops lighting.

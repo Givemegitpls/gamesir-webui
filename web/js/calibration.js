@@ -1,12 +1,9 @@
-// Calibration of the Cyclone 2 (vendor command 0xFE) plus the manual stick-centre
-// nudge (0xE2).
+// Calibration of the Cyclone 2 (vendor command 0xFE).
 //
 // Wire format, verified on hardware (see .opencode/NOTES.md):
 //   start : [0xFE, 0, partBits]      partBits 0x01 LS, 0x02 RS, 0x04 LT, 0x08 RT, 0x10 gyro
 //   finish: [0xFE, 1, 0]             the pad stores the result here
 //   abort : [0xFE, 2, 0]
-//   nudge : [0xE2, side, direction, countsHi, countsLo]   side 0 LS / 1 RS,
-//           direction 0 left, 1 right, 2 up, 3 down, counts in raw axis units
 //
 // The pad never answers 0xFE, and the vendor app gives no per-part feedback for
 // this model either: it just runs a timer. We do better by watching the axes it
@@ -43,23 +40,6 @@ export function calibrationFinishArgs() {
 
 export function calibrationAbortArgs() {
   return [CALIBRATION_ABORT, 0];
-}
-
-export const NUDGE_SIDES = { ls: 0, rs: 1 };
-export const NUDGE_DIRECTIONS = { left: 0, right: 1, up: 2, down: 3 };
-// The vendor app sends 32 counts per click on this model.
-export const NUDGE_COUNTS = 32;
-
-export function stickCenterArgs(side, direction, counts = NUDGE_COUNTS) {
-  const s = NUDGE_SIDES[side];
-  const d = NUDGE_DIRECTIONS[direction];
-  if (s === undefined || d === undefined) {
-    throw new Error(`bad stick nudge: ${side}/${direction}`);
-  }
-  if (!Number.isInteger(counts) || counts < 0 || counts > 0xffff) {
-    throw new Error(`bad stick nudge count: ${counts}`);
-  }
-  return [s, d, (counts >> 8) & 0xff, counts & 0xff];
 }
 
 // Tracks how much of the sticks' travel has been visited and how many full

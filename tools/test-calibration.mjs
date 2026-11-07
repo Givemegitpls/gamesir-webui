@@ -1,16 +1,14 @@
-// Validates the calibration helpers: command arguments (vendor 0xFE / 0xE2) and
-// the coverage tracker the UI uses for live feedback.
+// Validates the calibration helpers: command arguments (vendor 0xFE) and the
+// coverage tracker the UI uses for live feedback.
 // Run: node tools/test-calibration.mjs
 import {
   CALIBRATION_PARTS,
-  NUDGE_COUNTS,
   STICK_EDGE,
   TRIGGER_PASSES,
   calibrationAbortArgs,
   calibrationFinishArgs,
   calibrationStartArgs,
   createCoverage,
-  stickCenterArgs,
 } from '../web/js/calibration.js';
 
 const failures = [];
@@ -38,13 +36,6 @@ check('finish frame is calType 1 without parts', same(calibrationFinishArgs(), [
 check('abort frame is calType 2 without parts', same(calibrationAbortArgs(), [2, 0]));
 
 check('part bits match the vendor enum', same(CALIBRATION_PARTS, { sticks: 3, triggers: 12, motion: 16 }));
-
-check('nudge left stick up', same(stickCenterArgs('ls', 'up'), [0, 2, 0, NUDGE_COUNTS]));
-check('nudge right stick right', same(stickCenterArgs('rs', 'right'), [1, 1, 0, NUDGE_COUNTS]));
-check('nudge encodes 16-bit counts big endian', same(stickCenterArgs('rs', 'down', 300), [1, 3, 1, 44]));
-check('nudge rejects an unknown side', throws(() => stickCenterArgs('ms', 'up')));
-check('nudge rejects an unknown direction', throws(() => stickCenterArgs('ls', 'sideways')));
-check('nudge rejects an out-of-range count', throws(() => stickCenterArgs('ls', 'up', 0x10000)));
 
 // --- stick coverage --------------------------------------------------------
 

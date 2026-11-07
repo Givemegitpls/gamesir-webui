@@ -83,53 +83,6 @@
                   <span class="coords" data-coords="ls">0.000, 0.000</span>
                   <span class="badge">центр</span>
                 </figcaption>
-                <div>сдвиг</div>
-                <div class="nudge">
-                  <button
-                    type="button"
-                    data-nudge-side="ls"
-                    data-nudge-dir="left"
-                    data-i18n-title="cal.nudgeLeft"
-                    data-i18n-aria="cal.nudgeLeft"
-                    title="сдвинуть центр влево"
-                    aria-label="сдвинуть центр влево"
-                  >
-                    ←
-                  </button>
-                  <button
-                    type="button"
-                    data-nudge-side="ls"
-                    data-nudge-dir="up"
-                    data-i18n-title="cal.nudgeUp"
-                    data-i18n-aria="cal.nudgeUp"
-                    title="сдвинуть центр вверх"
-                    aria-label="сдвинуть центр вверх"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    data-nudge-side="ls"
-                    data-nudge-dir="down"
-                    data-i18n-title="cal.nudgeDown"
-                    data-i18n-aria="cal.nudgeDown"
-                    title="сдвинуть центр вниз"
-                    aria-label="сдвинуть центр вниз"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    data-nudge-side="ls"
-                    data-nudge-dir="right"
-                    data-i18n-title="cal.nudgeRight"
-                    data-i18n-aria="cal.nudgeRight"
-                    title="сдвинуть центр вправо"
-                    aria-label="сдвинуть центр вправо"
-                  >
-                    →
-                  </button>
-                </div>
               </figure>
 
               <figure class="stick" data-stick="rs">
@@ -149,60 +102,8 @@
                   <span class="coords" data-coords="rs">0.000, 0.000</span>
                   <span class="badge">центр</span>
                 </figcaption>
-                <div>сдвиг</div>
-                <div class="nudge">
-                  <button
-                    type="button"
-                    data-nudge-side="rs"
-                    data-nudge-dir="left"
-                    data-i18n-title="cal.nudgeLeft"
-                    data-i18n-aria="cal.nudgeLeft"
-                    title="сдвинуть центр влево"
-                    aria-label="сдвинуть центр влево"
-                  >
-                    ←
-                  </button>
-                  <button
-                    type="button"
-                    data-nudge-side="rs"
-                    data-nudge-dir="up"
-                    data-i18n-title="cal.nudgeUp"
-                    data-i18n-aria="cal.nudgeUp"
-                    title="сдвинуть центр вверх"
-                    aria-label="сдвинуть центр вверх"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    data-nudge-side="rs"
-                    data-nudge-dir="down"
-                    data-i18n-title="cal.nudgeDown"
-                    data-i18n-aria="cal.nudgeDown"
-                    title="сдвинуть центр вниз"
-                    aria-label="сдвинуть центр вниз"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    data-nudge-side="rs"
-                    data-nudge-dir="right"
-                    data-i18n-title="cal.nudgeRight"
-                    data-i18n-aria="cal.nudgeRight"
-                    title="сдвинуть центр вправо"
-                    aria-label="сдвинуть центр вправо"
-                  >
-                    →
-                  </button>
-                </div>
               </figure>
             </div>
-            <p class="hint" data-i18n="cal.centerHint">
-              Точечная поправка без перекалибровки: каждый клик сдвигает
-              сохранённый центр на 32 отсчёта. Кнопка в обратную сторону
-              возвращает всё назад.
-            </p>
           </section>
 
           <section class="group" data-cal-group="triggers">
@@ -345,7 +246,13 @@
                   >
                 </div>
 
-                <div id="button-test" class="presses"></div>
+                <div id="button-test" class="presses">
+                  <span class="press" data-button="10">L3</span>
+                  <span class="press" data-button="11">R3</span>
+                  <span class="press" data-button="8">View</span>
+                  <span class="press" data-button="9">Menu</span>
+                  <span class="press" data-button="16">Home</span>
+                </div>
 
                 <div
                   class="pad-cross"
@@ -396,13 +303,6 @@
             </button>
           </div>
           <p id="cal-status" class="hint"></p>
-        </div>
-
-        <div id="drift-hint" class="drift" hidden>
-          <div id="drift-text"></div>
-          <button id="drift-dismiss" type="button" data-i18n="drift.dismiss">
-            Скрыть на 5 минут
-          </button>
         </div>
 
         <p class="hint foot" data-i18n="live.rawHint">

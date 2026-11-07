@@ -59,10 +59,6 @@ for (const id of ['cal-sticks', 'cal-triggers', 'cal-motion', 'cal-panel', 'cal-
   'gyro-dot', 'gyro-tilt', 'gyro-rates', 'gyro-noise', 'gyro-g', 'gyro-level']) {
   check(`live card element ${id} is present`, htmlIds.has(id));
 }
-const nudgeButtons = [...html.matchAll(/data-nudge-side="(\w+)"/g)].map((m) => m[1]);
-check('stick centre nudge has four buttons per stick',
-  nudgeButtons.filter((s) => s === 'ls').length === 4 && nudgeButtons.filter((s) => s === 'rs').length === 4,
-  nudgeButtons.join(','));
 check('calibration module is imported by the UI', readFileSync(join(root, 'web/js/main.js'), 'utf8').includes("from './calibration.js'"));
 check('motion module is imported by the UI', readFileSync(join(root, 'web/js/main.js'), 'utf8').includes("from './motion.js'"));
 
@@ -80,6 +76,10 @@ for (const file of scripts) {
 }
 check('tags are balanced in every module', true);
 check('button test strip container exists', htmlIds.has('button-test'));
+check(
+  'service buttons are visible before a pad is connected',
+  ['8', '9', '10', '11', '16'].every((index) => html.includes(`data-button="${index}"`)),
+);
 check(
   'd-pad cross uses the standard indices',
   ['data-button="12"', 'data-button="13"', 'data-button="14"', 'data-button="15"'].every((needle) => html.includes(needle)),
@@ -103,30 +103,6 @@ check('crosses sit in the button-test row', html.includes('class="test-row"'));
 check('crosses are styled as grids', /\.pad-cross \{[^}]*grid-template-columns/.test(readFileSync(join(root, 'web/style.css'), 'utf8')));
 check('live view drives badges by index', readFileSync(join(root, 'web/js/live.js'), 'utf8').includes('[data-button]'));
 
-check(
-  'the author display rule cannot defeat [hidden]',
-  readFileSync(join(root, 'web/style.css'), 'utf8').includes('.drift[hidden]'),
-);
-check(
-  'drift guide contains the full calibration steps',
-  (() => {
-    const src = readFileSync(join(root, 'web/js/locales/ru.js'), 'utf8');
-    const live = readFileSync(join(root, 'web/js/live.js'), 'utf8');
-    return (
-      live.includes('drift.step1') &&
-      live.includes('drift.step2') &&
-      live.includes('drift.step3') &&
-      src.includes('Калибровка стиков и триггеров') &&
-      src.includes('медленно мигать белым') &&
-      src.includes('Не касайтесь триггеров LT и RT') &&
-      src.includes('трижды опишите')
-    );
-  })(),
-);
-check(
-  'drift banner text container is a block element',
-  /<div id="drift-text"><\/div>/.test(html),
-);
 // ABXY layout editing is disabled: the per-mode flags do not apply to
 // Bluetooth sessions, so the editor only keeps the commented-out block.
 const mainSource = readFileSync(join(root, 'web/js/main.js'), 'utf8');

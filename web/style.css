@@ -205,6 +205,11 @@ code {
   justify-content: center;
   align-items: flex-start;
 }
+/* the nudge row is gone: let the pair use the card's spare height */
+.group[data-cal-group="sticks"] > .sticks {
+  flex: 1;
+  align-items: center;
+}
 .stick {
   margin: 0;
   flex: 1 1 0;
@@ -267,25 +272,6 @@ code {
 }
 .stick.centered .badge {
   color: var(--ok);
-}
-
-/* per-stick centre nudge: a compact row, not a second d-pad */
-.nudge {
-  display: grid;
-  grid-template-columns: repeat(4, auto);
-  justify-content: center;
-  gap: 4px;
-  margin-top: 8px;
-  color: var(--dim);
-  font-size: 11px;
-}
-.nudge span {
-  grid-column: 1 / -1;
-}
-.nudge button {
-  padding: 2px 7px;
-  font-size: 12px;
-  min-width: 26px;
 }
 
 .triggers {
@@ -440,51 +426,6 @@ code {
   gap: 2px 12px;
 }
 
-.drift {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--warn);
-  border-radius: 8px;
-  background: rgba(255, 122, 122, 0.06);
-  color: var(--warn);
-  font-size: 13px;
-}
-/* the author `display` above would otherwise override the hidden attribute */
-.drift[hidden] {
-  display: none;
-}
-
-.drift .drift-reason {
-  font-weight: 600;
-}
-.drift .drift-body {
-  color: var(--fg);
-  display: grid;
-  gap: 6px;
-}
-.drift ol {
-  margin: 0;
-  padding-left: 20px;
-}
-.drift li {
-  margin: 2px 0;
-}
-.drift .drift-reason {
-  color: var(--warn);
-}
-.drift code {
-  background: #10141c;
-}
-.drift button {
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-/* button test strip */
 .presses {
   display: flex;
   flex-wrap: wrap;
@@ -771,7 +712,7 @@ pre.cmd .copy {
   white-space: pre-wrap;
 }
 
-/* calibration: step list, live coverage badges, stick-centre nudge pad */
+/* calibration: step list and live coverage badges */
 .cal-panel {
   margin: 12px 0;
   padding: 12px 14px;
@@ -806,41 +747,6 @@ pre.cmd .copy {
   border-style: solid;
   border-color: var(--ok);
   color: var(--ok);
-}
-
-.cal-nudges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-}
-.cal-nudge {
-  display: grid;
-  grid-template-areas: ". up ." "left name right" ". down .";
-  grid-template-columns: repeat(3, 34px);
-  gap: 4px;
-  align-items: center;
-  justify-items: center;
-}
-.cal-nudge b {
-  grid-area: name;
-  color: var(--dim);
-  font-size: 12px;
-}
-.cal-nudge button {
-  padding: 4px 0;
-  width: 34px;
-}
-.cal-nudge .up {
-  grid-area: up;
-}
-.cal-nudge .left {
-  grid-area: left;
-}
-.cal-nudge .right {
-  grid-area: right;
-}
-.cal-nudge .down {
-  grid-area: down;
 }
 
 /* lighting editor (page 32): tabs, sliders, round swatches, preset palette */
