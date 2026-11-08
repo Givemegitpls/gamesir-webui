@@ -16,6 +16,8 @@ import { existsSync } from 'node:fs';
 
 import { PROFILE_LEN, STICK_BLOCKS, TRIGGER_BLOCKS } from '../web/js/protocol.js';
 import { CMD } from '../web/js/hid.js';
+import en from '../web/js/locales/en.js';
+import ru from '../web/js/locales/ru.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const webRoot = join(root, 'web');
@@ -277,6 +279,125 @@ check(
 );
 check('zone status reports the stored pair', /15/.test(zoneWrite.status), zoneWrite.status);
 check('the button is enabled while connected', zoneWrite.button === false, String(zoneWrite.button));
+
+// --- the trigger hint follows the calibration session -------------------------
+//
+// It used to be the "three full presses" instruction all the time, which read as
+// if a calibration were always running. Now it explains the section while idle and
+// switches to the instruction only while the triggers are being calibrated.
+const hintText = () => evaluate("document.getElementById('cal-hint')?.textContent ?? ''");
+const shared = (key) => [ru[key], en[key]];
+const hintIdle = await hintText();
+check(
+  'idle hint explains the section, not the procedure',
+  shared('cal.triggersIdle').includes(hintIdle),
+  hintIdle,
+);
+
+const heightBefore = await evaluate(
+  "document.querySelector('[data-cal-group=\"triggers\"]').getBoundingClientRect().height",
+);
+await evaluate("document.getElementById('cal-triggers').click(); 1");
+await sleep(400);
+const hintActive = await hintText();
+check(
+  'hint turns into the procedure while calibrating',
+  shared('cal.triggersHint').includes(hintActive),
+  hintActive,
+);
+
+const layoutActive = await evaluate(`(() => {
+  const group = document.querySelector('[data-cal-group="triggers"]');
+  const panel = document.getElementById('cal-panel');
+  return {
+    calibrating: group.classList.contains('calibrating'),
+    panelInGroup: panel.parentElement === group,
+    panelShown: !panel.hidden,
+    barsHidden: group.querySelector('.triggers')?.offsetParent === null,
+    height: group.getBoundingClientRect().height,
+    centeringFits: [...document.querySelectorAll('#cal-checks .check')].every(
+      (badge) => badge.scrollWidth <= badge.clientWidth + 1,
+    ),
+  };
+})()`);
+check('the triggers group switches to the calibration layout', layoutActive.calibrating, String(layoutActive.calibrating));
+check('the calibration panel takes the place of the bars', layoutActive.panelInGroup && layoutActive.panelShown,
+  JSON.stringify(layoutActive));
+check('the trigger bars are hidden meanwhile', layoutActive.barsHidden === true, String(layoutActive.barsHidden));
+check('the centering badge fits inside its card', layoutActive.centeringFits === true, JSON.stringify(layoutActive));
+check(
+  'the group keeps its size while calibrating',
+  Math.abs(layoutActive.height - heightBefore) < 8,
+  `${heightBefore} -> ${layoutActive.height}`,
+);
+
+await evaluate("document.getElementById('cal-cancel').click(); 1");
+await sleep(400);
+const hintBack = await hintText();
+check('hint returns to the idle text after cancelling', shared('cal.triggersIdle').includes(hintBack), hintBack);
+
+const layoutBack = await evaluate(`(() => {
+  const group = document.querySelector('[data-cal-group="triggers"]');
+  return { calibrating: group.classList.contains('calibrating'), barsHidden: group.querySelector('.triggers')?.offsetParent === null };
+})()`);
+check('the normal trigger layout comes back', !layoutBack.calibrating && layoutBack.barsHidden === false,
+  JSON.stringify(layoutBack));
+
+// The sticks part keeps the real rings (same size as the live view), the panel with
+// the steps and the controls goes under them.
+// Document-relative: clicking a button can scroll the page a little, and that must
+// not be mistaken for the rings moving.
+const ringTopBefore = await evaluate(
+  "Math.round(document.querySelector('[data-cal-group=\"sticks\"] .stick svg').getBoundingClientRect().top + window.scrollY)",
+);
+await evaluate("document.getElementById('cal-sticks').click(); 1");
+await sleep(400);
+const sticksLayout = await evaluate(`(() => {
+  const panel = document.getElementById('cal-panel');
+  const rings = document.querySelector('[data-cal-group="sticks"] > .sticks');
+  const stepsEl = panel.querySelector('ol');
+  const checks = document.getElementById('cal-checks').getBoundingClientRect();
+  const save = document.getElementById('cal-save').getBoundingClientRect();
+  const cancel = document.getElementById('cal-cancel').getBoundingClientRect();
+  const steps = stepsEl.getBoundingClientRect();
+  const ring = rings.querySelector('.stick svg').getBoundingClientRect();
+  return {
+    ringsShown: rings.offsetParent !== null,
+    sticks: rings.querySelectorAll('.stick').length,
+    dots: rings.querySelectorAll('.dot').length,
+    captions: Boolean(rings.querySelector('.coords') && getComputedStyle(rings.querySelector('.coords')).display !== 'none'),
+    ringsAboveSteps: rings.getBoundingClientRect().bottom <= steps.top + 1,
+    ringWidth: Math.round(ring.width),
+    ringTop: Math.round(ring.top + window.scrollY),
+    buttonsRight: save.left > checks.right && cancel.left > checks.right,
+    buttonsOneRow: Math.abs(save.top - cancel.top) < 2,
+    saveLeftOfCancel: save.left < cancel.left,
+    textToButtons: Math.round(checks.top - steps.bottom),
+  };
+})()`);
+check('the real stick rings stay visible while calibrating',
+  sticksLayout.ringsShown && sticksLayout.sticks === 2 && sticksLayout.dots === 2, JSON.stringify(sticksLayout));
+check('the rings are as big as in the live view', sticksLayout.ringWidth >= 170, `${sticksLayout.ringWidth}px`);
+check('coords/badges are hidden, the LS/RS labels stay', sticksLayout.captions === false, String(sticksLayout.captions));
+check('the rings sit above the steps', sticksLayout.ringsAboveSteps === true, String(sticksLayout.ringsAboveSteps));
+check('sticks put the counters left and the buttons right', sticksLayout.buttonsRight === true,
+  JSON.stringify(sticksLayout));
+check('stick buttons share one row, Save before Cancel',
+  sticksLayout.buttonsOneRow && sticksLayout.saveLeftOfCancel, JSON.stringify(sticksLayout));
+check('the steps sit right above the bottom row', sticksLayout.textToButtons >= 0 && sticksLayout.textToButtons <= 14,
+  `${sticksLayout.textToButtons}px`);
+check('the rings stay within 3px when the panel appears', Math.abs(sticksLayout.ringTop - ringTopBefore) <= 3,
+  `${ringTopBefore} -> ${sticksLayout.ringTop}`);
+
+// The rings must also stay put while the session runs (checks update every tick).
+await sleep(250);
+const ringTopLater = await evaluate(
+  "Math.round(document.querySelector('[data-cal-group=\"sticks\"] .stick svg').getBoundingClientRect().top + window.scrollY)",
+);
+check('the rings do not drift while calibrating', ringTopLater === sticksLayout.ringTop,
+  `${sticksLayout.ringTop} -> ${ringTopLater}`);
+await evaluate("document.getElementById('cal-cancel').click(); 1");
+await sleep(400);
 
 ws.close();
 cleanup();

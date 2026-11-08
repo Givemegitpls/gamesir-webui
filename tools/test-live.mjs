@@ -88,8 +88,6 @@ for (const id of [
   'padinfo',
   'zone-inner',
   'zone-outer',
-  'zone-inner-out',
-  'zone-outer-out',
   'lt-bar',
   'rt-bar',
   'lt-val',
@@ -228,10 +226,10 @@ doc.dispatch('visibilitychange', {});
 pump(1);
 check('перезапуск не дублирует кадры', queue.length === 1, String(queue.length));
 
-// --- deadzone pair sliders --------------------------------------------------
+// --- deadzone pair fields ---------------------------------------------------
 
 check(
-  'rings follow the sliders',
+  'rings follow the fields',
   ls.tolerance.getAttribute('r') === '2' && ls.edge.getAttribute('r') === '100',
   `${ls.tolerance.getAttribute('r')}/${ls.edge.getAttribute('r')}`,
 );
@@ -245,24 +243,42 @@ axis = 0.5;
 pump(1);
 check('outer ring goes dark again below the threshold', !ls.classList.contains('edge-on'));
 
-// moving the inner slider past the pair must drag the outer one along
+// typing above the limit must not rewrite the field, only the picture follows
 el('zone-inner').value = '95';
 el('zone-inner').dispatch('input', { target: el('zone-inner') });
 check(
-  'sliders keep the 10% gap',
-  el('zone-outer').value === '100' && el('zone-inner-out').textContent === '90%',
+  'typing is not overwritten',
+  el('zone-inner').value === '95' && ls.tolerance.getAttribute('r') === '90',
+  `${el('zone-inner').value} r=${ls.tolerance.getAttribute('r')}`,
+);
+check('outer ring follows the typed inner value', ls.edge.getAttribute('r') === '100', ls.edge.getAttribute('r'));
+
+// committing the field keeps the 10% gap
+el('zone-inner').dispatch('change', { target: el('zone-inner') });
+check(
+  'fields keep the 10% gap on change',
+  el('zone-outer').value === '100' && el('zone-inner').value === '90',
   `${el('zone-inner').value}/${el('zone-outer').value}`,
 );
-check('outer ring follows the new value', ls.edge.getAttribute('r') === '100', ls.edge.getAttribute('r'));
 
-// and lowering the outer slider pulls the inner one back
+// and lowering the outer field pulls the inner one back
 el('zone-outer').value = '40';
-el('zone-outer').dispatch('input', { target: el('zone-outer') });
+el('zone-outer').dispatch('change', { target: el('zone-outer') });
 check(
-  'lowering the outer slider moves the inner one',
+  'lowering the outer field moves the inner one',
   el('zone-inner').value === '30',
   `${el('zone-inner').value}/${el('zone-outer').value}`,
 );
+
+// an emptied field must not turn into 0% without a committed value
+el('zone-inner').value = '';
+el('zone-inner').dispatch('input', { target: el('zone-inner') });
+check(
+  'an empty field falls back to the last valid value for the rings',
+  ls.tolerance.getAttribute('r') === '2',
+  String(ls.tolerance.getAttribute('r')),
+);
+el('zone-inner').value = '30';
 
 // the loop itself must keep the pair valid on the pad data
 axis = 0.35;

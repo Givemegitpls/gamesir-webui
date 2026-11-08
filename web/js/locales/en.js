@@ -53,12 +53,12 @@ export default {
   'live.bumpers': 'bumpers',
   'live.atOuter': 'reached the outer zone',
   'live.zoneWrite': 'Write to profiles 1–4',
-  'live.zoneNeedsDevice': 'WebHID required: the sliders below write stick deadzones into profiles 1–4',
+  'live.zoneNeedsDevice': 'WebHID required: these fields write stick deadzones into profiles 1–4',
   'live.zoneWriting': 'writing profiles 1–4: inner {inner}%, outer {outer}%…',
   'live.zoneWritten': 'stored in every profile: inner {inner}%, outer {outer}%',
   'live.zoneMismatch': 'read-back mismatch on pages {pages}',
   'live.rawHint':
-    'Values are read raw, without the firmware deadzone: if the stick is at rest but the dot is not centred or the axes are not highlighted, the centre is off. The sliders set the stick deadzone pair and write it into all four profiles at once.',
+    'Values are read raw, without the firmware deadzone: if the stick is at rest but the dot is not centred or the axes are not highlighted, the centre is off. The fields set the stick deadzone pair and write it into all four profiles at once.',
   'live.buttonTest': 'Button test',
   'live.buttonTestHint': 'Shows what the pad actually reports to the host.',
   'live.groupSticks': 'Sticks',
@@ -101,12 +101,10 @@ export default {
   'cal.saved': 'calibration stored in the pad',
   'cal.savedMotion': 'gyro calibration stored',
   'cal.aborted': 'calibration cancelled, nothing was stored',
-  'cal.ready': 'ready to save',
-  'cal.waiting': 'follow the steps above',
-  'cal.checkStick': '{side}: {covered} of {total} directions covered',
-  'cal.checkTrigger': '{side}: {passes} of {total} full presses',
-  'cal.checkMotion': 'pad resting still: {seconds} s left',
-  'cal.centering': 'centering: leave the sticks alone',
+  'cal.checkStick': '{side}: {covered} of {total}',
+  'cal.checkTrigger': '{side}: {passes} of {total}',
+  'cal.checkMotion': '{seconds} s left',
+  'cal.centering': 'centring…',
   'cal.stepSticksOne': 'Put the pad on a table and leave sticks and triggers alone while it centres.',
   'cal.stepSticksTwo':
     'Roll both sticks along the edge through a full circle until all four directions are covered. Do not press the triggers meanwhile.',
@@ -115,6 +113,8 @@ export default {
   'cal.stepMotionOne': 'Place the pad flat on a level surface and do not move it.',
   'cal.stepMotionTwo': 'Wait for the countdown to end — it saves itself.',
   'cal.triggersHint': 'Full travel means three presses all the way down and back. Leave the sticks alone meanwhile.',
+  'cal.triggersIdle':
+    'The triggers show raw LT and RT travel. Calibration stores the extreme points of the press.',
 
   'profile.title': 'Profile and settings',
   'profile.hint':

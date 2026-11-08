@@ -332,31 +332,37 @@ code {
 }
 .zone-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 12px;
 }
 .zone-bar button {
   white-space: nowrap;
+  margin-left: auto;
+}
+/* status line sits below the fields and disappears while empty */
+.zone-bar-status {
+  flex: 1 1 100%;
+  margin: 0;
+}
+.zone-bar-status:empty {
+  display: none;
+}
+/* the WebHID note is static: it stays visible, so it owns its own line */
+.zone-hint {
+  flex: 1 1 100%;
+  margin: 0;
 }
 .tol {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   color: var(--dim);
   font-size: 12px;
-  white-space: nowrap;
 }
-.tol input {
-  width: 130px;
-  accent-color: var(--accent);
-}
-.tol output {
-  font:
-    12px ui-monospace,
-    Menlo,
-    monospace;
-  color: var(--fg);
+.tol input[type="number"] {
+  width: 96px;
 }
 
 /* gyro group: bubble level + compact numbers */
@@ -735,6 +741,8 @@ pre.cmd .copy {
 
 /* calibration: step list and live coverage badges */
 .cal-panel {
+  display: flex;
+  flex-direction: column;
   margin: 12px 0;
   padding: 12px 14px;
   border: 1px solid var(--line);
@@ -743,6 +751,31 @@ pre.cmd .copy {
 }
 .cal-panel[hidden] {
   display: none;
+}
+/* While a group is calibrating, its own layout gives way to the panel: the bars
+   and buttons would sit next to instructions they are not part of. */
+.group.calibrating > :not(.group-head):not(.cal-panel) {
+  display: none;
+}
+/* Sticks are the exception: the rings are the picture the user works with, so they
+   stay in place (same size as the live view) and only their captions go away. */
+.group.calibrating[data-cal-group="sticks"] > .sticks {
+  display: flex;
+}
+.group.calibrating[data-cal-group="sticks"] > .sticks .coords,
+.group.calibrating[data-cal-group="sticks"] > .sticks .badge {
+  display: none;
+}
+.group.calibrating[data-cal-group="sticks"] > .sticks figcaption {
+  margin: 4px 0 8px;
+}
+.group.calibrating > .cal-panel {
+  margin: 0;
+  flex: 1;
+  /* the group already draws the frame: the panel must not add a second one */
+  border: 0;
+  padding: 0;
+  background: transparent;
 }
 .cal-panel ol {
   margin: 6px 0;
@@ -763,13 +796,76 @@ pre.cmd .copy {
   padding: 4px 10px;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cal-checks .check.ok {
   border-style: solid;
   border-color: var(--ok);
   color: var(--ok);
 }
-
+.cal-run {
+  display: contents;
+}
+/* triggers: the buttons hug the bottom edge, Cancel above Save */
+.cal-actions {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+/* sticks: counters on the left, buttons on the right, one bottom row; the steps
+   sit right above it, so the spare height stays between the rings and the text */
+.cal-panel.is-sticks > ol {
+  margin-top: auto;
+}
+.cal-panel.is-sticks .cal-run {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 0;
+}
+.cal-panel.is-sticks .cal-checks {
+  margin: 0;
+}
+.cal-panel.is-sticks .cal-checks .check {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.cal-panel.is-sticks .cal-actions button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.cal-panel.is-sticks .cal-actions {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 0;
+  padding-top: 0;
+}
+/* the motion part saves itself: no Save button, so the countdown and Cancel share
+   the bottom line, Cancel against the right edge */
+.cal-panel.is-motion .cal-run {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: auto;
+}
+.cal-panel.is-motion .cal-checks {
+  margin: 0;
+}
+.cal-panel.is-motion .cal-actions {
+  flex-direction: row;
+  margin-top: 0;
+  padding-top: 0;
+}
 /* lighting editor (page 32): tabs, sliders, round swatches, preset palette */
 .light-misc {
   display: flex;

@@ -753,8 +753,6 @@ function updateButtons() {
   // The live card writes to every profile at once, so it only needs a connection.
   if (zoneWriteBtn) {
     zoneWriteBtn.disabled = !hid;
-    if (!hid) zoneStatus('live.zoneNeedsDevice');
-    else if (zoneState?.key === 'live.zoneNeedsDevice') zoneStatus(null);
   }
   if (!desired || !original) {
     applyBtn.disabled = true;
@@ -882,7 +880,7 @@ async function applyChanges() {
 
 // --- stick zones for all profiles at once (live card) ------------------------
 //
-// The sliders describe one deadzone pair; the button stores it in profiles 1..4
+// The fields describe one deadzone pair; the button stores it in profiles 1..4
 // so a single gesture stops being a per-page chore. Writing also sets dead_en:
 // without the flag the stored values are dead weight in the profile.
 
@@ -1105,7 +1103,7 @@ function showPermissions() {
 // The pad samples sticks/triggers/gyro itself (vendor command 0xFE) and never
 // answers it. The vendor app only runs a timer; we watch the axes the pad reports
 // anyway, so the user sees when the travel is actually covered.
-const CAL_MOTION_MS = 3000;
+const CAL_MOTION_MS = 7000;
 const CAL_CENTER_MS = 800;
 const CAL_POLL_MS = 50;
 
@@ -1116,15 +1114,74 @@ const CAL_STEPS = {
   motion: ['cal.stepMotionOne', 'cal.stepMotionTwo'],
 };
 const calPanel = document.getElementById('cal-panel');
-const calTitleEl = document.getElementById('cal-title');
 const calStepsEl = document.getElementById('cal-steps');
 const calChecksEl = document.getElementById('cal-checks');
 const calSaveBtn = document.getElementById('cal-save');
 const calCancelBtn = document.getElementById('cal-cancel');
-const calStatusEl = document.getElementById('cal-status');
+const calHintEl = document.getElementById('cal-hint');
 
 let calSession = null; // { part, coverage, startedAt, motionLeft, saving }
 let calPoll = 0;
+
+// The line under the trigger bars explains the section while idle and becomes the
+// instruction only during a triggers calibration (the panel's steps repeat it).
+function renderCalHint(part) {
+  if (!calHintEl) return;
+  calHintEl.textContent = t(part === 'triggers' ? 'cal.triggersHint' : 'cal.triggersIdle');
+}
+
+// The group being calibrated swaps its layout for the panel. Its measured height
+// is pinned first, so the card does not jump while the calibration runs; the
+// entry is cleared when the session ends or moves to another part.
+let calLayoutGroup = null;
+let calRingsTop = null;
+
+// Called after the panel content is in the DOM: the first estimate can be a pixel or
+// two off because the steps/checks change the card height, so the padding is nudged
+// until the circle sits exactly where it was before the switch.
+function pinCalRings() {
+  if (!calLayoutGroup || calLayoutGroup.dataset.calGroup !== 'sticks' || calRingsTop === null) return;
+  const ring = calLayoutGroup.querySelector('.sticks .stick svg');
+  const sticks = ring?.closest('.sticks');
+  if (!ring || !sticks) return;
+  const delta = calRingsTop - ring.getBoundingClientRect().top;
+  if (Math.abs(delta) < 0.5) return;
+  const current = Number.parseFloat(getComputedStyle(sticks).paddingTop) || 0;
+  sticks.style.paddingTop = `${(current + delta).toFixed(1)}px`;
+}
+
+function applyCalLayout(part) {
+  const active = part ? document.querySelector(`[data-cal-group="${part}"]`) : null;
+  if (active === calLayoutGroup) return;
+  const previousSticks = calLayoutGroup?.querySelector(':scope > .sticks');
+  if (calLayoutGroup) {
+    calLayoutGroup.classList.remove('calibrating');
+    calLayoutGroup.style.removeProperty('min-height');
+    calRingsTop = null;
+  }
+  if (previousSticks) {
+    for (const prop of ['padding-top', 'flex', 'align-items']) previousSticks.style.removeProperty(prop);
+  }
+  calLayoutGroup = active;
+  if (!active) return;
+  const height = active.getBoundingClientRect().height;
+  // The rings must not roll up or down when the card switches to the panel: their
+  // offset inside the sticks area is measured first and pinned as padding, so the
+  // same circle sits in the same place before and during the calibration.
+  const sticks = active.dataset.calGroup === 'sticks' ? active.querySelector(':scope > .sticks') : null;
+  const ring = sticks?.querySelector('.stick svg');
+  const ringTop = ring ? ring.getBoundingClientRect().top : null;
+  const ringOffset = ring ? Math.max(0, ringTop - sticks.getBoundingClientRect().top) : null;
+  calRingsTop = ringTop;
+  active.classList.add('calibrating');
+  // getBoundingClientRect is 0 in a hidden/headless layout: only pin real sizes.
+  if (height > 0) active.style.minHeight = `${height.toFixed(2)}px`;
+  if (sticks && ringOffset !== null) {
+    sticks.style.flex = '0 0 auto';
+    sticks.style.alignItems = 'flex-start';
+    sticks.style.paddingTop = `${ringOffset.toFixed(1)}px`;
+  }
+}
 
 function stopCalPoll() {
   if (calPoll) clearInterval(calPoll);
@@ -1141,21 +1198,28 @@ function calReady(session) {
 
 function renderCalPanel() {
   const session = calSession;
+  // The group being calibrated drops its own layout (bars, sticks, hints) and
+  // shows the panel instead; the header with the buttons stays.
+  applyCalLayout(session?.part);
+  renderCalHint(session?.part);
   if (!calPanel) return;
   if (!session) {
     calPanel.hidden = true;
     return;
   }
   calPanel.hidden = false;
-  calTitleEl.textContent = t(CAL_TITLES[session.part]);
+  calPanel.classList.toggle('is-motion', session.part === 'motion');
+  calPanel.classList.toggle('is-sticks', session.part === 'sticks');
+  // The gyro part saves itself when the countdown ends, so it has no Save button;
+  // Cancel sits next to the countdown instead (see .cal-panel.is-motion).
+  calSaveBtn.hidden = session.part === 'motion';
   calStepsEl.innerHTML = CAL_STEPS[session.part].map((key) => `<li>${t(key)}</li>`).join('');
 
   const centering = performance.now() < session.centerUntil;
   if (centering) {
     calChecksEl.innerHTML = `<span class="check">${t('cal.centering')}</span>`;
     calSaveBtn.disabled = true;
-    calStatusEl.textContent = t('cal.waiting');
-    calStatusEl.className = 'hint';
+    pinCalRings();
     return;
   }
 
@@ -1186,9 +1250,10 @@ function renderCalPanel() {
     })}</span>`;
   }
 
-  calSaveBtn.disabled = !calReady(session) || session.saving;
-  calStatusEl.textContent = calReady(session) ? t('cal.ready') : t('cal.waiting');
-  calStatusEl.className = `hint${calReady(session) ? ' ok' : ''}`;
+  // Save is meaningless for the motion part: the countdown ends and the pad stores
+  // the result itself, the button below is kept for the other two parts only.
+  calSaveBtn.disabled = session.part === 'motion' || !calReady(session) || session.saving;
+  pinCalRings();
 }
 
 function calTick() {

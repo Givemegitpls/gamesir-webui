@@ -16,12 +16,18 @@ const LEVEL_RANGE = 40; // viewBox units for a 1 g tilt on the gyro level
 
 const signed = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
 
+// Number fields can be emptied or carry junk while the user types; fall back to
+// the default so the rings and the write never see NaN.
+const inputNumber = (input, fallback) => {
+  const raw = String(input?.value ?? '').trim();
+  const value = Number(raw);
+  return raw !== '' && Number.isFinite(value) ? value : fallback;
+};
+
 export function startLiveView(doc = document, onMode = () => {}) {
   const info = doc.getElementById('padinfo');
   const innerInput = doc.getElementById('zone-inner');
   const outerInput = doc.getElementById('zone-outer');
-  const innerOut = doc.getElementById('zone-inner-out');
-  const outerOut = doc.getElementById('zone-outer-out');
   const ltBar = doc.getElementById('lt-bar');
   const rtBar = doc.getElementById('rt-bar');
   const ltVal = doc.getElementById('lt-val');
@@ -49,33 +55,40 @@ export function startLiveView(doc = document, onMode = () => {}) {
   }
 
   const zoneValues = () => ({
-    inner: Number(innerInput?.value ?? 2),
-    outer: Number(outerInput?.value ?? 100),
+    inner: inputNumber(innerInput, 2),
+    outer: inputNumber(outerInput, 100),
   });
 
-  // The card owns the pair: the sliders keep the 10% gap and the rings follow
-  // them, so what the picture shows is what a write would store.
-  function syncZoneSliders() {
-    const { inner, outer } = zoneValues();
-    if (innerOut) innerOut.textContent = `${inner}%`;
-    if (outerOut) outerOut.textContent = `${outer}%`;
+  // The card owns the pair: the number fields keep the 10% gap and the rings
+  // follow them, so what the picture shows is what a write would store.
+  function syncZoneRings() {
+    const { inner, outer } = clampZonePair(zoneValues());
     for (const stick of Object.values(sticks)) {
       stick.tolerance?.setAttribute('r', String((inner / 100) * RANGE));
       stick.edge?.setAttribute('r', String((outer / 100) * RANGE));
     }
   }
 
-  function onZoneInput(event) {
+  // While typing the value is left alone (rewriting it would eat digits); the
+  // rings already show the clamped pair. The fields are normalised on `change`,
+  // like the deadzone fields of the profile editor.
+  function onZoneInput() {
+    syncZoneRings();
+  }
+
+  function onZoneChange(event) {
     const moved = event?.target === outerInput ? 'outer' : 'inner';
     const zones = clampZonePair(zoneValues(), moved);
     if (innerInput) innerInput.value = String(zones.inner);
     if (outerInput) outerInput.value = String(zones.outer);
-    syncZoneSliders();
+    syncZoneRings();
   }
 
   innerInput?.addEventListener('input', onZoneInput);
   outerInput?.addEventListener('input', onZoneInput);
-  syncZoneSliders();
+  innerInput?.addEventListener('change', onZoneChange);
+  outerInput?.addEventListener('change', onZoneChange);
+  syncZoneRings();
 
   let lastKey = null;
   let lastMeta = null;
@@ -317,7 +330,7 @@ export function startLiveView(doc = document, onMode = () => {}) {
       const zones = clampZonePair({ ...zoneValues(), ...next });
       if (innerInput) innerInput.value = String(zones.inner);
       if (outerInput) outerInput.value = String(zones.outer);
-      syncZoneSliders();
+      syncZoneRings();
     },
     stop() {
       running = false;
